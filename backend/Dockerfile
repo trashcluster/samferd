@@ -4,7 +4,7 @@ FROM golang:1.21-alpine AS builder
 WORKDIR /app
 
 # Install dependencies
-COPY backend/go.mod backend/go.sum ./
+COPY backend/go.mod backend/go.sum* ./
 RUN go mod download
 
 # Build application

@@ -9,8 +9,10 @@
         <router-link v-if="isAuthenticated" to="/profile" class="nav-link">Profile</router-link>
         <router-link v-if="isAuthenticated && isAdmin" to="/admin" class="nav-link admin">Admin</router-link>
         <button v-if="isAuthenticated" @click="logout" class="nav-link logout-btn">Logout</button>
-        <router-link v-else to="/login" class="nav-link">Login</router-link>
-        <router-link v-else to="/register" class="nav-link">Register</router-link>
+        <template v-else>
+          <router-link to="/login" class="nav-link">Login</router-link>
+          <router-link to="/register" class="nav-link">Register</router-link>
+        </template>
       </div>
     </nav>
 

@@ -5,7 +5,7 @@ WORKDIR /app
 
 # Install dependencies
 COPY backend/go.mod backend/go.sum* ./
-RUN go mod download
+RUN go mod tidy && go mod download
 
 # Build application
 COPY backend/ .

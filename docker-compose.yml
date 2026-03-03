@@ -1,0 +1,85 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: samferd-db
+    environment:
+      # Database credentials - change these for production!
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres_local_dev_password
+      POSTGRES_DB: samferd
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - samferd-network
+    restart: unless-stopped
+
+  backend:
+    image: ghcr.io/trashclyster/samferd-backend:latest
+    container_name: samferd-api
+    environment:
+      # Server Configuration
+      PORT: 8080
+      
+      # Database Configuration
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: postgres
+      DB_PASSWORD: postgres_local_dev_password
+      DB_NAME: samferd
+      
+      # Security - CHANGE THESE FOR PRODUCTION!
+      JWT_SECRET: dev-secret-key-change-in-production-with-random-32-char-string
+      
+      # URLs
+      FRONTEND_URL: http://localhost:3000
+      
+      # Email (optional, not used in MVP)
+      SMTP_HOST: smtp.gmail.com
+      SMTP_PORT: 587
+      SMTP_USER: noreply@example.com
+      SMTP_PASSWORD: ""
+      SMTP_FROM: noreply@example.com
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - samferd-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/events"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  frontend:
+    image: ghcr.io/trashclyster/samferd-frontend:latest
+    container_name: samferd-app
+    environment:
+      # Frontend API Configuration
+      VITE_API_BASE_URL: http://localhost:8080
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    networks:
+      - samferd-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  samferd-network:
+    driver: bridge

@@ -1,0 +1,11 @@
+go.sum
+vendor/
+bin/
+.env
+.env.local
+*.log
+.vscode
+.git
+.gitignore
+README.md
+Dockerfile

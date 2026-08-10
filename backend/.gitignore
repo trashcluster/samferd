@@ -1,5 +1,0 @@
-go.sum
-vendor/
-.env
-.env.local
-*.log

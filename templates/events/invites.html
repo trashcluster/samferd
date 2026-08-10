@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% translate "Invite link" %} — {{ event.name }}{% endblock %}
+{% block content %}
+<div class="card" style="max-width:560px;">
+    <h1>{% translate "Invite link" %}</h1>
+    <p class="muted">{% translate "This multi-user link lets anyone open it to join the event. It expires automatically when the event passes." %}</p>
+    <form method="post" action="{% url 'events:event_create' %}">
+    {% comment %}We create links via a dedicated view below; this form is a placeholder styled consistently.{% endcomment %}
+    </form>
+    <form method="post" action="{% url 'events:invites_create' event.pk %}">
+        {% csrf_token %}
+        <button class="btn" type="submit">{% translate "Generate new invite link" %}</button>
+    </form>
+    {% if links %}
+    <h2>{% translate "Active links" %}</h2>
+    <ul>
+        {% for link in links %}
+        <li>
+            <code>{{ request.scheme }}://{{ request.get_host }}{% url 'accounts:invite_redeem' link.pk %}</code>
+            {% if not link.is_valid %}<span class="pill warn">{% translate "expired/revoked" %}</span>{% endif %}
+            <form method="post" action="{% url 'events:invites_revoke' link.pk %}" style="display:inline;">{% csrf_token %}
+                <button class="btn danger small" type="submit">{% translate "Revoke" %}</button>
+            </form>
+        </li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+</div>
+{% endblock %}

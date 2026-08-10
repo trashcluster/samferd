@@ -9,3 +9,15 @@ node_modules/
 dist/
 vendor/
 bin/
+
+# Python / Django
+__pycache__/
+*.pyc
+*.pyo
+db.sqlite3
+staticfiles/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+/pyvenv.cfg
+locale/*.mo

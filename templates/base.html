@@ -1,0 +1,76 @@
+{% load static i18n %}
+<!DOCTYPE html>
+<html lang="{{ LANGUAGE_CODE }}">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}Samferd{% endblock %}</title>
+    <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+    <script>htmx.config.defaultSwapStyle = 'innerHTML';</script>
+    <style>
+        :root { --brand:#2563eb; --ok:#16a34a; --warn:#d97706; --danger:#dc2626; --ink:#111827; --muted:#6b7280; --bg:#f9fafb; --card:#fff; --line:#e5e7eb; }
+        * { box-sizing:border-box; }
+        body { margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+        .wrap { max-width:960px; margin:0 auto; padding:16px; }
+        header { background:var(--brand); color:#fff; }
+        header .wrap { display:flex; align-items:center; justify-content:space-between; padding:10px 16px; }
+        header a { color:#fff; text-decoration:none; font-weight:600; }
+        nav a { margin-left:14px; font-weight:500; opacity:.9; }
+        main { padding:20px 16px 60px; }
+        .card { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:16px; margin-bottom:16px; }
+        h1 { font-size:1.5rem; } h2 { font-size:1.15rem; }
+        table { width:100%; border-collapse:collapse; font-size:.9rem; }
+        th,td { text-align:left; padding:8px 6px; border-bottom:1px solid var(--line); vertical-align:top; }
+        th { color:var(--muted); font-weight:600; }
+        .btn { display:inline-block; background:var(--brand); color:#fff; border:0; border-radius:6px; padding:8px 14px; cursor:pointer; text-decoration:none; font-size:.9rem; }
+        .btn.small { padding:4px 9px; font-size:.8rem; }
+        .btn.ghost { background:transparent; color:var(--brand); border:1px solid var(--brand); }
+        .btn.ghost:hover { background:var(--brand); color:#fff; }
+        .btn.danger { background:var(--danger); }
+        .btn.ok { background:var(--ok); }
+        .pill { display:inline-block; background:#eef2ff; color:var(--brand); border-radius:999px; padding:2px 10px; font-size:.78rem; font-weight:600; }
+        .pill.ok { background:#dcfce7; color:var(--ok); }
+        .pill.warn { background:#fef3c7; color:var(--warn); }
+        .pill.danger { background:#fee2e2; color:var(--danger); }
+        .muted { color:var(--muted); font-size:.85rem; }
+        .grid { display:grid; gap:16px; }
+        @media(min-width:768px){ .grid.cols2 { grid-template-columns:1fr 1fr; } }
+        form label { display:block; margin:10px 0 4px; font-weight:500; font-size:.9rem; }
+        input,select,textarea { width:100%; padding:8px; border:1px solid var(--line); border-radius:6px; font-size:.95rem; }
+        .error { color:var(--danger); font-size:.85rem; }
+        .messages { list-style:none; padding:0; }
+        .messages li { padding:10px 14px; border-radius:6px; margin-bottom:8px; }
+        .messages .success { background:#dcfce7; color:var(--ok); }
+        .messages .error { background:#fee2e2; color:var(--danger); }
+        .messages .info { background:#eef2ff; color:var(--brand); }
+        .offer { border:1px solid var(--line); border-radius:8px; padding:10px; margin-bottom:8px; background:#fbfcfe; }
+        .offer .price { font-size:1.05rem; font-weight:700; color:var(--brand); }
+        .seg { font-size:.82rem; color:var(--muted); margin-top:4px; }
+        .tag { font-size:.72rem; font-weight:600; padding:1px 7px; border-radius:999px; background:#eef2ff; color:var(--brand); }
+    </style>
+</head>
+<body>
+<header>
+    <div class="wrap">
+        <a href="{% url 'events:home' %}">🚙 Samferd</a>
+        <nav>
+            {% if user.is_authenticated %}
+                {% if user.can_organize or user.is_superuser %}
+                    <a href="{% url 'events:event_create' %}">{% translate "New event" %}</a>
+                {% endif %}
+                <a href="{% url 'accounts:profile' %}">{{ user.username|default:user.email }}</a>
+                <a href="{% url 'accounts:logout' %}">{% translate "Log out" %}</a>
+            {% endif %}
+        </nav>
+    </div>
+</header>
+<main class="wrap">
+    {% if messages %}
+    <ul class="messages">
+        {% for m in messages %}<li class="{{ m.tags }}">{{ m }}</li>{% endfor %}
+    </ul>
+    {% endif %}
+    {% block content %}{% endblock %}
+</main>
+</body>
+</html>

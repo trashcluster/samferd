@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{{ event.name }}{% endblock %}
+{% block content %}
+<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+    <h1 style="margin:0;">{{ event.name }}</h1>
+    <div>
+        {% if is_organizer %}
+        <a class="btn ghost small" href="{% url 'events:event_edit' event.pk %}">{% translate "Edit" %}</a>
+        <a class="btn ghost small" href="{% url 'events:event_invites' event.pk %}">{% translate "Invite link" %}</a>
+        {% endif %}
+        <a class="btn small" href="{% url 'events:home' %}">{% translate "Back" %}</a>
+    </div>
+</div>
+<p class="muted">
+    {{ event.outbound_date }} → {{ event.return_date }} · {% translate "Currency" %}: {{ event.currency }}
+    {% if event.is_past %} · <span class="pill warn">{% translate "Past event" %}</span>{% endif %}
+</p>
+{% if event.description %}<p>{{ event.description }}</p>{% endif %}
+
+<div class="grid cols2">
+    <!-- Participants & cars -->
+    <div>
+        <div class="card">
+            <h2>{% translate "Participants" %} ({{ participations|length }})</h2>
+            <table>
+                <thead><tr><th>{% translate "Name" %}</th><th>{% translate "Mode" %}</th><th>{% translate "Flight" %}</th></tr></thead>
+                <tbody>
+                {% for p in participations %}
+                    <tr>
+                        <td>{{ p.user.first_name|default:p.user.username }}</td>
+                        <td>
+                            {% if p.travel_mode == "driving" %}<span class="pill ok">🚗 {% translate "Driving" %}</span>
+                            {% elif p.travel_mode == "flying" %}<span class="pill">✈️ {% translate "Flying" %}</span>
+                            {% else %}<span class="pill warn">{% translate "Undecided" %}</span>{% endif %}
+                        </td>
+                        <td>
+                            {% for b in p.bookings.all %}
+                                {% if b.flight_number %}<span class="tag">{{ b.direction }}: {{ b.flight_number }}</span>
+                                    {% if b.enrichment_status == "ok" %} {{ b.enrichment.departure_airport }} → {{ b.enrichment.arrival_airport }}{% endif %}
+                                    {% if b.status == "confirmed" %}<br><span class="muted">✓ {% translate "Confirmed" %}</span>{% endif %}
+                                {% else %}<span class="muted">—</span>{% endif %}
+                            {% empty %}<span class="muted">—</span>{% endfor %}
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+            {% if me %}
+            <div style="margin-top:12px;">
+                <a class="btn ghost small" href="{% url 'fares:booking_edit' event.pk 'outbound' %}">{% translate "Edit my outbound flight" %}</a>
+                <a class="btn ghost small" href="{% url 'fares:booking_edit' event.pk 'return' %}">{% translate "Edit my return flight" %}</a>
+                <a class="btn ghost small" href="{% url 'carpool:car_offer' event.pk %}">{% translate "Offer/update a car" %}</a>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="card">
+            <h2>{% translate "Cars to the airport" %}</h2>
+            {% for car in cars %}
+            <div class="offer">
+                <div style="display:flex;justify-content:space-between;">
+                    <strong>{{ car.participation.user.first_name|default:car.participation.user.username }}</strong>
+                    <span class="pill">{{ car.remaining_seats }}/{{ car.total_free_seats }} {% translate "free" %}</span>
+                </div>
+                {% if car.departure_airport %}<div class="muted">@ {{ car.departure_airport.airport }}</div>{% endif %}
+                {% if car.note %}<div class="muted">{{ car.note }}</div>{% endif %}
+                {% if car.cost_amount or car.parking_override %}
+                <div class="muted">{% translate "Cost (est.)" %}: {{ car.cost_amount|default:"0.00" }} {{ event.currency }}
+                    · {% translate "per person" %}: {{ car.per_person_share|floatformat:2 }} {{ event.currency }}</div>
+                {% endif %}
+                {% if car.riders %}
+                <div class="muted">🙋 {% for r in car.riders %}{{ r.rider.user.first_name|default:r.rider.user.username }}{% if not forloop.last %}, {% endif %}{% endfor %}</div>
+                {% endif %}
+                {% if car.participation.user_id == user.id %}
+                    {% for req in car.seat_requests.all %}
+                        {% if req.status == "pending" %}
+                        <div class="muted">
+                            {{ req.rider.user.username }} {% translate "requests a seat" %} ({{ req.direction }})
+                            <a class="btn ok small" href="{% url 'carpool:seat_resolve' req.pk 'approve' %}">✓</a>
+                            <a class="btn danger small" href="{% url 'carpool:seat_resolve' req.pk 'decline' %}">✕</a>
+                        </div>
+                        {% endif %}
+                    {% endfor %}
+                {% endif %}
+                {% if me and me.id != car.participation_id and car.remaining_seats > 0 %}
+                    <form method="post" action="{% url 'carpool:request_seat' car.pk %}" style="margin-top:8px;">
+                        {% csrf_token %}
+                        <select name="direction">
+                            <option value="both">{% translate "Both ways" %}</option>
+                            <option value="outbound">{% translate "Outbound" %}</option>
+                            <option value="return">{% translate "Return" %}</option>
+                        </select>
+                        <button class="btn small" type="submit">{% translate "Request a seat" %}</button>
+                    </form>
+                {% endif %}
+            </div>
+            {% empty %}
+            <p class="muted">{% translate "No cars offered yet." %}</p>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Price offers -->
+    <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+            <h2 style="margin:0;">{% translate "Flight prices" %}</h2>
+            {% if not event.is_past and me %}
+            <form method="post" action="{% url 'fares:manual_refresh' event.pk %}">{% csrf_token %}
+                <button class="btn small" type="submit">{% translate "Refresh" %}</button>
+            </form>
+            {% endif %}
+        </div>
+        <p class="muted">{% translate "Airports" %}:
+            {% for o in origins %}<span class="tag">{{ o.airport.iata_code }}</span> {% endfor %}
+            → {% for d in destinations %}<span class="tag">{{ d.airport.iata_code }}</span> {% endfor %}
+        </p>
+        {% for rq in route_queries %}
+            <div class="offer">
+                <strong>{{ rq.direction|capfirst }}: {{ rq.origin.iata_code }} → {{ rq.destination.iata_code }}</strong>
+                <span class="muted">({{ rq.travel_date }})</span>
+                {% for offer in rq.top_offers %}
+                <div class="seg">
+                    <span class="price">{{ offer.price_amount }} {{ offer.currency }}</span>
+                    · {{ offer.legs_count }} {% translate "leg" %}{{ offer.legs_count|pluralize }}
+                    {% if offer.total_duration_minutes %}· {{ offer.total_duration_minutes }} min{% endif %}
+                    {% if offer.booking_link %}<a href="{{ offer.booking_link }}" target="_blank" rel="noopener">{% translate "Search" %}</a>{% endif %}
+                    <div>{% for s in offer.segments %}<span class="tag">{{ s.carrier }}{{ s.flight_number }}</span> {% endfor %}</div>
+                </div>
+                {% empty %}
+                <div class="muted">{% translate "No offers yet." %}</div>
+                {% endfor %}
+            </div>
+        {% empty %}
+            <p class="muted">{% translate "Add origin and destination airports to fetch prices." %}</p>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% translate "Profile" %}{% endblock %}
+{% block content %}
+<div class="card">
+    <h1>{% translate "My profile" %}</h1>
+    <form method="post">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button class="btn" type="submit">{% translate "Save" %}</button>
+    </form>
+</div>
+<div class="card">
+    <h2>{% translate "Data" %}</h2>
+    <p><a class="btn ghost" href="{% url 'accounts:profile_export' %}">{% translate "Export my data (JSON)" %}</a></p>
+    <form method="post" action="{% url 'accounts:profile_delete' %}" onsubmit="return confirm('{% translate "This deletes your account. Continue?" %}');">
+        {% csrf_token %}
+        <button class="btn danger" type="submit">{% translate "Delete my account" %}</button>
+    </form>
+</div>
+{% endblock %}

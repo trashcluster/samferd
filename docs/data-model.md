@@ -168,7 +168,7 @@ auto-cancelled.
 | total_duration | interval | |
 | segments | JSON | per leg: carrier, flight number, dep/arr airport & time |
 | booking_link | URL | provider deep link |
-| provider | str | `amadeus` (abstraction, see api.md) |
+| provider | str | `google_flights` (abstraction, see api.md) |
 | fetched_at | datetime | |
 
 Previous generation kept (one snapshot back) for better-route comparison, then purged.

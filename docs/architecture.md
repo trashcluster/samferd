@@ -28,7 +28,7 @@ graph LR
     web --> db & redis
     worker --> db & redis
     beat --> redis
-    worker --> amadeus["Amadeus API"]
+    worker --> gflights["Google Flights<br/>(fast-flights scraper)"]
     worker --> smtp["SMTP"]
     worker --> osm["Nominatim / ECB rates"]
 ```
@@ -49,7 +49,6 @@ host (documented examples for Caddy and Traefik).
 
 The instance-level **API budget** (token bucket in Redis) is enforced inside the fare
 provider client; when 80 % consumed, refresh degrades per [api.md §3](api.md).
-
 ## 4. Configuration (environment variables)
 
 | Variable | Default | Purpose |
@@ -58,9 +57,8 @@ provider client; when 80 % consumed, refresh degrades per [api.md §3](api.md).
 | `DEFAULT_LANGUAGE` | `fr` | instance default locale |
 | `OIDC_RP_CLIENT_ID/SECRET`, `OIDC_OP_DISCOVERY_URL` | unset | enable OIDC when set |
 | `ENABLE_PASSWORD_AUTH` | `true` | email/password fallback toggle |
-| `FARE_PROVIDER` | `amadeus` | provider selection |
-| `AMADEUS_CLIENT_ID/SECRET`, `AMADEUS_ENV` | —, `test` | fare API credentials |
-| `API_MONTHLY_BUDGET` | `2000` | global call budget (quota guard) |
+| `FARE_PROVIDER` | `google_flights` | provider selection |
+| `FARE_PROVIDER_LANGUAGE` | `en` | language hint for Google Flights display names |
 | `EMAIL_URL` (SMTP DSN), `DEFAULT_FROM_EMAIL` | — | notifications |
 | `TIE_TOLERANCE_PERCENT` | `5` | better-route comparison tolerance |
 
@@ -74,7 +72,7 @@ samferd/
 │   ├── accounts/            # User, profile, OIDC, invites, GDPR
 │   ├── events/              # Event, airports, participation
 │   ├── carpool/             # Car, SeatRequest, cost split
-│   ├── fares/               # provider abstraction, Amadeus client, RouteQuery, FlightOffer, Booking
+│   ├── fares/               # provider abstraction, Google Flights client, RouteQuery, FlightOffer, Booking
 │   └── notifications/       # emails, digests, NotificationLog
 ├── locale/                  # .po translation templates (fr default, en)
 ├── templates/ / static/
@@ -86,9 +84,9 @@ samferd/
 
 - Unit tests: cost split, comparison rule (lexicographic + tolerance), invite validity,
   quota guard — pure logic, no API.
-- Integration tests with **recorded Amadeus fixtures** (VCR-style); never hit the live API
-  in CI.
-- Amadeus `test` environment for manual end-to-end checks.
+- Integration tests with **recorded fast-flights fixtures** (VCR-style); never hit the
+  live Google Flights page in CI.
+- Manual end-to-end checks against the live Google Flights scraper.
 - Lint/format: ruff; CI via GitHub Actions.
 
 ## 7. Security notes

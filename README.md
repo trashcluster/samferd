@@ -20,10 +20,11 @@ and coordinates — it never books or charges anything.
   (default EUR), and fixed dates.
 - **Car pooling** — drivers offer seats; flyers request a seat; the driver approves.
   Per-person cost split (car + parking) is computed automatically.
-- **Flight prices** — cached top-3 offers per route via the **Amadeus Self-Service API**,
-  with flight numbers and search deep links. Scheduled + manual refresh.
-- **Booked-flight tracking** — declare your flight number/date; the app enriches it via
-  the Amadeus schedules API so everyone sees what flight people took.
+- **Flight prices** — cached top-3 offers per route via **Google Flights** (open-source
+  `fast-flights` scraper), with search deep links. Scheduled + manual refresh.
+- **Booked-flight tracking** — declare your flight number/date so everyone sees what
+  flight people took. (Automatic flight-status enrichment is not available with the
+  Google Flights provider; entries are shown as declared.)
 - **Better-route email alerts** (daily digest) with a price/legs/duration comparison.
 - **Multi-language** UI (default French, English included).
 - **GDPR** — self-service JSON export and account deletion.
@@ -58,25 +59,27 @@ Edit `.env` and set at least:
 | `DEFAULT_LANGUAGE` | | `fr` (default) or `en` |
 | `ENABLE_PASSWORD_AUTH` | | `true` to allow email/password login |
 
-### 3. API credentials (Amadeus)
+### 3. Fare provider (Google Flights)
 
-Samferd uses the **Amadeus Self-Service API** for flight prices and flight-number
-enrichment. Get free credentials at <https://developers.amadeus.com> (Self-Service
-products: *Flight Offers Search* and *On-Demand Flight Status*).
+Samferd gets flight prices from **Google Flights** via the open-source
+[`fast-flights`](https://github.com/AWeirdDev/flights) scraper. **No API credentials are
+required.**
 
 Set in `.env`:
 
 ```bash
-FARE_PROVIDER=amadeus
-AMADEUS_ENV=test          # 'test' for the sandbox, 'prod' for live prices
-AMADEUS_CLIENT_ID=your_client_id
-AMADEUS_CLIENT_SECRET=your_client_secret
-API_MONTHLY_BUDGET=2000   # global call budget guard
+FARE_PROVIDER=google_flights
+FARE_PROVIDER_LANGUAGE=en   # language hint for Google Flights display names
 ```
 
-> **Note:** with `AMADEUS_ENV=test` you get sample data. Switch to `prod` for real
-> prices. The app degrades gracefully if credentials are missing — the price table
-> simply shows "No offers yet".
+> **Notes & limitations:**
+> - Prices are whole-unit integers in the (hinted) event currency; cents are not shown.
+> - The scraper sends a small politeness delay between route queries to avoid being
+>   rate-limited by Google.
+> - Flight-number **enrichment is not available** with this provider — booked flights
+>   are shown as declared and flagged "unverified".
+> - If Google changes their page, a refresh may return no offers; the app degrades
+>   gracefully (the price table simply shows "No offers yet").
 
 ### 4. Optional: OIDC (SSO) login
 
@@ -172,9 +175,8 @@ All configuration is via environment variables (see `.env.example`). Key ones:
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `FARE_PROVIDER` | `amadeus` | Fare provider (abstraction allows adding more) |
-| `AMADEUS_ENV` | `test` | `test` or `prod` |
-| `API_MONTHLY_BUDGET` | `2000` | Global monthly API call budget guard |
+| `FARE_PROVIDER` | `google_flights` | Fare provider (abstraction allows adding more) |
+| `FARE_PROVIDER_LANGUAGE` | `en` | Language hint for Google Flights display names |
 | `TIE_TOLERANCE_PERCENT` | `5` | Better-route comparison tolerance |
 | `DEFAULT_LANGUAGE` | `fr` | Instance default UI language |
 | `ENABLE_PASSWORD_AUTH` | `true` | Toggle email/password login |

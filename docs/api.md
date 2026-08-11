@@ -72,27 +72,24 @@ class FareProvider(Protocol):
 ```
 
 `Offer` = price, legs, duration, segments (carrier, flight number, times), booking deep
-link, provider id. Provider selected via settings (`FARE_PROVIDER=amadeus`).
+link, provider id. Provider selected via settings (`FARE_PROVIDER=google_flights`).
 
-## 3. Amadeus integration (v1 provider)
+## 3. Google Flights integration (v1 provider)
 
-- **Auth**: OAuth2 client-credentials; token cached until expiry.
-- **Search**: `GET /v2/shopping/flight-offers` with
-  `originLocationCode`, `destinationLocationCode`, `departureDate`,
-  `currencyCode=<event currency>`, `adults=1`, `max=3`.
-  One call per RouteQuery (event × origin × destination × direction).
-- **Enrichment**: `GET /v2/schedule/flights` (On-Demand Flight Status) with
-  `carrierCode`, `flightNumber`, `scheduledDepartureDate`. Failure → booking flagged
-  `unverified`, retried once daily until the flight date.
-- **Booking links**: Amadeus Self-Service does not provide airline deep links directly;
-  v1 generates a **search deep link** (e.g. Google Flights / airline URL template built
-  from segments) clearly labeled as "search this flight". Documented limitation.
-- **Environments**: `test` (free, limited data) and `production` keys; configurable.
-
-### Quota math
-
-Free self-service tier: ~2 000–3 000 calls/month for Flight Offers Search (varies by
-endpoint; check current quotas).
+- **Auth**: none. Uses the open-source [`fast-flights`](https://github.com/AWeirdDev/flights)
+  scraper against the Google Flights web UI (no API key).
+- **Search**: one `create_query(...)` per RouteQuery (event × origin × destination ×
+  direction), `trip="one-way"`, `seat="economy"`, `adults=1`, `currency=<event currency>`.
+  The scraper returns every itinerary Google shows; the provider keeps only priced
+  results, sorts ascending by price, and slices to `max_results` (3).
+- **Consent bypass**: the provider pre-seeds Google's EU `CONSENT`/`SOCS` cookies so the
+  scraper is not redirected to `consent.google.com` (required when running from EU IPs).
+- **Enrichment**: **not supported** — there is no flight-status endpoint. `enrich_flight`
+  returns `None`; bookings stay flagged `unverified` and are not retried.
+- **Booking links**: the provider uses `query.url()`, the exact Google Flights search
+  deep link for the itinerary, clearly labeled as "search this flight".
+- **Politeness**: a 1.5 s delay is inserted between route queries to avoid Google
+  rate-limiting/blocking.
 
 Per event refresh cost = `origins × destinations × 2 directions` calls.
 

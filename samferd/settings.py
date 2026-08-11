@@ -155,11 +155,9 @@ CELERY_BEAT_SCHEDULE = {
 }
 
 # Fare provider
-FARE_PROVIDER = env("FARE_PROVIDER", default="amadeus")
-AMADEUS_ENV = env("AMADEUS_ENV", default="test")
-AMADEUS_CLIENT_ID = env("AMADEUS_CLIENT_ID", default="")
-AMADEUS_CLIENT_SECRET = env("AMADEUS_CLIENT_SECRET", default="")
-API_MONTHLY_BUDGET = env.int("API_MONTHLY_BUDGET", default=2000)
+FARE_PROVIDER = env("FARE_PROVIDER", default="google_flights")
+# Language hint passed to Google Flights (affects airline/airport display names).
+FARE_PROVIDER_LANGUAGE = env("FARE_PROVIDER_LANGUAGE", default="en")
 
 # Notifications
 DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="samferd@example.com")

@@ -1,5 +1,6 @@
 """Service layer for fares: refresh, enrichment, better-route detection."""
 import logging
+import time
 from datetime import timedelta
 from decimal import Decimal
 
@@ -7,6 +8,7 @@ from django.utils import timezone
 
 from .models import RouteQuery, FlightOffer, Booking
 from .providers import get_provider
+from .providers.base import BaseFareProvider
 from . import comparison
 from samferd.notifications import notify
 
@@ -82,6 +84,7 @@ def refresh_event_offers(event):
             )
         rq.last_fetched_at = timezone.now()
         rq.save(update_fields=["last_fetched_at"])
+        time.sleep(1.5)  # politeness delay between scraper calls
 
     notify_better_routes(event)
 
@@ -140,6 +143,11 @@ def enrich_pending_bookings():
         status__in=["booked", "confirmed"], enrichment_status__in=["pending", "failed"],
     )
     provider = get_provider()
+    if type(provider).enrich_flight is BaseFareProvider.enrich_flight:
+        # Provider doesn't implement enrichment (e.g. google_flights); mark as
+        # unsupported once instead of retrying forever.
+        bookings.update(enrichment_status="failed")
+        return
     for booking in bookings:
         if not booking.flight_number or not booking.flight_date:
             continue

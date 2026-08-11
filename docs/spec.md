@@ -27,7 +27,7 @@ money.
 |---|---|
 | Invite-only user registration | Open public sign-up |
 | Events with multiple origin & destination airports | Trains, buses, ferries |
-| Cached flight price table (Amadeus API, top 3 offers per route) | In-app booking / payment |
+| Cached flight price table (Google Flights, top 3 offers per route) | In-app booking / payment |
 | Car offers, seat requests with driver approval | Automatic car assignment |
 | Cost-split computation (informative) | Settlement / debt tracking |
 | Booked-flight declaration + API enrichment | Real-time flight status tracking |
@@ -124,7 +124,7 @@ On joining, a participant declares a travel mode (changeable at any time):
 
 ### Provider
 
-- **Amadeus Self-Service API** (Flight Offers Search) is the v1 provider.
+- **Google Flights** (via the open-source `fast-flights` scraper) is the v1 provider.
 - The integration sits behind a **provider abstraction** so Skyscanner (or Kiwi, etc.) can
   be added later without touching the rest of the app. See [api.md](api.md).
 
@@ -156,9 +156,9 @@ Searching ──► Booked ──► Confirmed
               (flags: refundable? yes/no)
 ```
 
-- **Booked**: user enters flight number + date (+ refundable flag). The app **enriches**
-  the entry via the Amadeus schedules API: airline, departure/arrival times, airports.
-  If enrichment fails, the raw entry is kept and flagged "unverified".
+- **Booked**: user enters flight number + date (+ refundable flag). The app keeps the
+  entry as declared and flags it "unverified" — automatic flight-status enrichment is
+  **not available** with the Google Flights provider.
 - **Confirmed**: the user asserts the booking is final.
 - Other participants see everyone's flights on the event page.
 

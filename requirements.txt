@@ -9,3 +9,4 @@ django-environ
 gunicorn
 whitenoise
 django-htmx
+fast-flights>=3.0,<4

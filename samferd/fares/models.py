@@ -41,7 +41,7 @@ class FlightOffer(models.Model):
     total_duration_minutes = models.IntegerField(null=True, blank=True)
     segments = models.JSONField(default=list)  # per leg: carrier, flight, times, airports
     booking_link = models.URLField(max_length=1000, blank=True)
-    provider = models.CharField(max_length=32, default="amadeus")
+    provider = models.CharField(max_length=32, default="google_flights")
     fetched_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

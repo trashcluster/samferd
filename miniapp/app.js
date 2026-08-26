@@ -59,6 +59,7 @@ const API = new URLSearchParams(location.search).get('api') || 'https://samferd.
 const $ = (id) => document.getElementById(id);
 
 let me = null;
+let isAdmin = false;
 
 // ---------------------------------------------------------------------------
 // API helpers
@@ -262,6 +263,33 @@ async function createCar() {
   }
 }
 
+async function adminSaveFlight() {
+  const id = Number($('admin-flight-id').value);
+  if (!id) {
+    toast('Enter a flight id.');
+    return;
+  }
+  const body = { id };
+  const flightNumber = $('admin-flight-number').value.trim();
+  const departureDate = $('admin-departure-date').value;
+  const origin = $('admin-origin').value.trim();
+  const destination = $('admin-destination').value.trim();
+  const departureTime = $('admin-departure-time').value.trim();
+  if (flightNumber) body.flightNumber = flightNumber;
+  if (departureDate) body.departureDate = departureDate;
+  if (origin) body.origin = origin;
+  if (destination) body.destination = destination;
+  if (departureTime) body.departureTime = departureTime;
+  try {
+    await call('PATCH', '/api/flights', body);
+    toast('Flight updated.');
+    await refresh();
+    if (tg) tg.HapticFeedback.notificationOccurred('success');
+  } catch (e) {
+    toast(e.message);
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Bootstrap
 // ---------------------------------------------------------------------------
@@ -276,6 +304,7 @@ async function init() {
   try {
     const auth = await call('GET', '/api/auth');
     me = auth.user.id;
+    isAdmin = !!auth.isAdmin;
     $('loading').classList.add('hidden');
     $('app').classList.remove('hidden');
     await refresh();
@@ -292,6 +321,18 @@ async function init() {
     const hidden = addForm.classList.toggle('hidden');
     toggle.textContent = hidden ? '＋ Add flight / car' : '－ Close';
   });
+
+  // Admin button + panel (visible only to admins).
+  if (isAdmin) {
+    $('toggle-admin').classList.remove('hidden');
+    const adminToggle = $('toggle-admin');
+    const adminPanel = $('admin-panel');
+    adminToggle.addEventListener('click', () => {
+      const hidden = adminPanel.classList.toggle('hidden');
+      adminToggle.textContent = hidden ? '⚙️ Admin' : '⚙️ Close admin';
+    });
+    $('admin-save-flight').addEventListener('click', adminSaveFlight);
+  }
 
   // Invite-only: no public join link. Non-members are told to contact an admin.
   $('create-flight').addEventListener('click', createFlight);

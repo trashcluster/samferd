@@ -47,6 +47,31 @@
       </label>
       <button id="create-car" class="btn primary">Offer car</button>
     </section>
+
+    <!-- Admin (visible only to admins) -->
+    <button id="toggle-admin" class="btn admin hidden">⚙️ Admin</button>
+    <section id="admin-panel" class="panel form hidden">
+      <h2>Admin — edit flight</h2>
+      <label>Flight id
+        <input id="admin-flight-id" type="number" placeholder="e.g. 1" />
+      </label>
+      <label>Flight number
+        <input id="admin-flight-number" type="text" placeholder="AF1234" autocomplete="off" />
+      </label>
+      <label>Departure date
+        <input id="admin-departure-date" type="date" />
+      </label>
+      <label>Departure city / airport
+        <input id="admin-origin" type="text" placeholder="e.g. CDG" autocomplete="off" />
+      </label>
+      <label>Destination city / airport
+        <input id="admin-destination" type="text" placeholder="e.g. OSL" autocomplete="off" />
+      </label>
+      <label>Departure time (HH:MM)
+        <input id="admin-departure-time" type="text" placeholder="13:45" autocomplete="off" />
+      </label>
+      <button id="admin-save-flight" class="btn primary">Save flight</button>
+    </section>
   </main>
 
   <div id="toast" class="toast hidden"></div>

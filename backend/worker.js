@@ -22,10 +22,15 @@ const BOT_TOKEN = () => env.BOT_TOKEN;
 const FLIGHT_API_PROVIDER = () => env.FLIGHT_API_PROVIDER || '';
 const FLIGHT_API_KEY = () => env.FLIGHT_API_KEY || '';
 
+// Telegram user ids with full admin (override) rights. Add more ids as needed.
+const ADMIN_IDS = new Set([
+  128294574, // Axel (the app owner)
+]);
+
 // CORS: the Mini App is served from Telegram's webview; allow any origin.
 const CORS = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET,POST,DELETE,OPTIONS',
+  'Access-Control-Allow-Methods': 'GET,POST,PATCH,DELETE,OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, X-Init-Data',
 };
 
@@ -231,8 +236,12 @@ async function fetchAviationstack(flightNumber, departureDate) {
     + '&limit=1';
   try {
     const res = await fetch(url);
+    const text = await res.text();
+    console.log('[enrich] status:', res.status, 'flight:', flightNumber, departureDate);
+    console.log('[enrich] body:', text.slice(0, 1000));
     if (!res.ok) return null;
-    const body = await res.json();
+    let body;
+    try { body = JSON.parse(text); } catch { return null; }
     const f = body && body.data && body.data[0];
     if (!f) return null;
     return {
@@ -272,7 +281,7 @@ async function handle(request) {
 
   // ---- auth check ----------------------------------------------------------
   if (path === '/api/auth') {
-    return json({ ok: true, user: userInfo(user) });
+    return json({ ok: true, user: userInfo(user), isAdmin: ADMIN_IDS.has(user.id) });
   }
 
   // ---- board ---------------------------------------------------------------
@@ -280,7 +289,7 @@ async function handle(request) {
     const flights = board.flights
       .filter((f) => f.departureDate >= new Date().toISOString().slice(0, 10))
       .sort((a, b) => a.departureDate.localeCompare(b.departureDate) || a.id - b.id);
-    return json({ ok: true, flights, cars: board.cars, me: user.id });
+    return json({ ok: true, flights, cars: board.cars, me: user.id, isAdmin: ADMIN_IDS.has(user.id) });
   }
 
   // ---- create flight -------------------------------------------------------
@@ -398,7 +407,8 @@ async function handle(request) {
     const id = Number(body.id);
     const car = board.cars.find((c) => c.id === id);
     if (!car) return json({ ok: false, error: 'not_found', message: 'Car not found.' }, 404);
-    if (car.driver.id !== user.id) {
+    // Creator OR admin may delete.
+    if (car.driver.id !== user.id && !ADMIN_IDS.has(user.id)) {
       return json({ ok: false, error: 'forbidden', message: 'Only the driver can delete this car.' }, 403);
     }
     board.cars = board.cars.filter((c) => c.id !== id);
@@ -411,12 +421,46 @@ async function handle(request) {
     const id = Number(body.id);
     const flight = findFlight(id);
     if (!flight) return json({ ok: false, error: 'not_found', message: 'Flight not found.' }, 404);
-    if (flight.createdBy !== user.id) {
+    // Creator OR admin may delete.
+    if (flight.createdBy !== user.id && !ADMIN_IDS.has(user.id)) {
       return json({ ok: false, error: 'forbidden', message: 'Only the creator can delete it.' }, 403);
     }
     board.flights = board.flights.filter((f) => f.id !== id);
     await saveBoard(board);
     return json({ ok: true });
+  }
+
+  // ---- admin: edit flight info -------------------------------------------
+  if (path === '/api/flights' && method === 'PATCH') {
+    if (!ADMIN_IDS.has(user.id)) {
+      return json({ ok: false, error: 'forbidden', message: 'Admin only.' }, 403);
+    }
+    const body = await request.json().catch(() => ({}));
+    const id = Number(body.id);
+    const flight = findFlight(id);
+    if (!flight) return json({ ok: false, error: 'not_found', message: 'Flight not found.' }, 404);
+
+    if ('departureDate' in body) {
+      const d = String(body.departureDate || '');
+      if (d && !/^\d{4}-\d{2}-\d{2}$/.test(d)) {
+        return json({ ok: false, error: 'bad_date', message: 'Date must be YYYY-MM-DD.' }, 400);
+      }
+      flight.departureDate = d || flight.departureDate;
+    }
+    if ('flightNumber' in body) {
+      const n = String(body.flightNumber || '').toUpperCase().replace(/[\s-]/g, '');
+      if (n && !/^[A-Z0-9]{2}\d{1,4}$/.test(n)) {
+        return json({ ok: false, error: 'bad_flight', message: 'Invalid flight number.' }, 400);
+      }
+      if (n) flight.flightNumber = n;
+    }
+    // Departure city/airport, time, and other info.
+    for (const f of ['origin', 'destination', 'departureTime', 'terminal', 'gate', 'status']) {
+      if (f in body) flight[f] = body[f] ? String(body[f]) : null;
+    }
+
+    await saveBoard(board);
+    return json({ ok: true, flight });
   }
 
   return json({ ok: false, error: 'not_found', message: 'Not found.' }, 404);

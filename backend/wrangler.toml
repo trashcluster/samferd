@@ -2,6 +2,15 @@ name = "samferd"
 main = "worker.js"
 compatibility_date = "2024-01-01"
 
+# Enable persistent invocation logs (viewable in the Cloudflare dashboard or via
+# `wrangler tail`) without needing an active tail session.
+[observability]
+enabled = true
+
+[observability.logs]
+enabled = true
+invocation_logs = true
+
 # The KV namespace backing the shared board. Create it with:
 #   wrangler kv namespace create SAMFERD
 # then paste the returned id below.

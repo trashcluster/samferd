@@ -4,9 +4,53 @@
 // backend can validate identity and enforce group membership.
 
 const tg = window.Telegram?.WebApp;
+
+// --- Fullscreen + safe-area (notch / home-indicator) handling ----------------
+// On iPhones with a notch, content must respect the safe-area insets. We drive
+// CSS variables from Telegram's own safeAreaInset / contentSafeAreaInset, which
+// are more accurate than env() alone, and update them on every size change.
+function applySafeArea() {
+  if (!tg) return;
+  const root = document.documentElement;
+  const sa = tg.safeAreaInset || {};
+  const csa = tg.contentSafeAreaInset || {};
+  const set = (name, v) => {
+    if (typeof v === 'number' && Number.isFinite(v)) {
+      root.style.setProperty(name, `${Math.round(v)}px`);
+    }
+  };
+  // Top: the device notch/status bar → use the device safe-area top inset.
+  set('--safe-top', sa.top);
+  // Bottom/left/right: prefer the content safe area (accounts for Telegram's
+  // own bottom bar and rounded corners in fullscreen), fall back to device inset.
+  set('--safe-bottom', csa.bottom ?? sa.bottom);
+  set('--safe-left', csa.left ?? sa.left);
+  set('--safe-right', csa.right ?? sa.right);
+}
+
 if (tg) {
   tg.ready();
   tg.expand();
+
+  // Match the header/background to the theme so the status bar blends in.
+  const headerColor = tg.themeParams?.header_bg_color
+    || tg.themeParams?.secondary_bg_color
+    || tg.themeParams?.bg_color;
+  if (headerColor) {
+    try { tg.setHeaderColor(headerColor); } catch (_) {}
+    try { tg.setBackgroundColor(headerColor); } catch (_) {}
+  }
+
+  applySafeArea();
+
+  // Enter fullscreen when available (Bot API 8.0+) for an immersive app.
+  if (tg.isVersionAtLeast && tg.isVersionAtLeast('8.0') && !tg.isFullscreen) {
+    try { tg.requestFullscreen(); } catch (_) {}
+  }
+
+  // Re-apply safe areas whenever the viewport, safe area, or fullscreen changes.
+  ['viewportChanged', 'safeAreaChanged', 'contentSafeAreaChanged', 'fullscreenChanged']
+    .forEach((evt) => tg.onEvent(evt, applySafeArea));
 }
 
 // Set your backend Worker URL here (or via ?api= query param for easy testing).

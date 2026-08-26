@@ -38,42 +38,73 @@ function json(data, status = 200) {
 // initData validation (Telegram Mini Apps security)
 // ---------------------------------------------------------------------------
 
-async function hmacSha256(data, key) {
+// HMAC-SHA256 over raw key bytes and a string message. The key may be a string
+// (encoded to UTF-8) or raw bytes (Uint8Array/ArrayBuffer) — the latter is used
+// for the derived `secret_key`, which is the raw HMAC digest, NOT a string.
+async function hmacSha256(key, message) {
+  const keyBytes = key instanceof Uint8Array ? key
+    : key instanceof ArrayBuffer ? new Uint8Array(key)
+    : encoder.encode(key);
   const k = await crypto.subtle.importKey(
-    'raw', encoder.encode(key), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'],
+    'raw', keyBytes, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'],
   );
-  return crypto.subtle.sign('HMAC', k, encoder.encode(data));
+  return crypto.subtle.sign('HMAC', k, encoder.encode(message));
 }
 
-async function hmacHex(data, key) {
-  const sig = new Uint8Array(await hmacSha256(data, key));
+async function hmacHex(key, message) {
+  const sig = new Uint8Array(await hmacSha256(key, message));
   return [...sig].map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
 /** Validate initData; returns the parsed user object or null. */
 async function validateInitData(initData, botToken) {
-  if (!initData) return null;
+  if (!initData) {
+    console.log('[auth] no initData header');
+    return null;
+  }
+
   const params = new URLSearchParams(initData);
   const hash = params.get('hash');
-  if (!hash) return null;
-  params.delete('hash');
+  if (!hash) {
+    console.log('[auth] no hash in initData');
+    return null;
+  }
 
+  // Build the data-check-string per Telegram's spec:
+  //   - all fields EXCEPT `hash` (INCLUDING `signature`)
+  //   - values DECODED (URLSearchParams.get already decodes)
+  //   - keys sorted alphabetically, joined with '\n'
   const dataCheckString = [...params.entries()]
+    .filter(([k]) => k !== 'hash')
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([k, v]) => `${k}=${v}`)
     .join('\n');
 
+  // Per Telegram's spec:
+  //   secret_key = HMAC_SHA256(key="WebAppData", message=<bot_token>)
+  //   hash       = hex(HMAC_SHA256(key=secret_key, message=data_check_string))
   const secretKey = await hmacSha256('WebAppData', botToken);
-  const computed = await hmacHex(dataCheckString, secretKey);
-  if (computed !== hash) return null;
+  const computed = await hmacHex(secretKey, dataCheckString);
+  if (computed !== hash) {
+    console.log('[auth] hash mismatch — initData validation FAILED');
+    console.log('[auth] computed:', computed);
+    console.log('[auth] received:', hash);
+    return null;
+  }
 
   // Optional freshness check: reject initData older than ~2 days.
   const authDate = Number(params.get('auth_date') || 0);
-  if (authDate && Date.now() / 1000 - authDate > 172800) return null;
+  if (authDate && Date.now() / 1000 - authDate > 172800) {
+    console.log('[auth] initData too old:', authDate);
+    return null;
+  }
 
   try {
-    return JSON.parse(params.get('user'));
+    const user = JSON.parse(params.get('user'));
+    console.log('[auth] initData valid, user id:', user?.id);
+    return user;
   } catch {
+    console.log('[auth] failed to parse user field');
     return null;
   }
 }
@@ -97,9 +128,13 @@ async function isAllowedMember(userId) {
   // Short-term cache (5 min) to avoid hammering getChatMember on every call.
   const cacheKey = `member:${userId}`;
   const cached = await env.SAMFERD.get(cacheKey);
-  if (cached !== null) return cached === 'yes';
+  if (cached !== null) {
+    console.log('[auth] membership from cache:', userId, '=>', cached);
+    return cached === 'yes';
+  }
 
   const member = await getMembership(userId);
+  console.log('[auth] getChatMember status:', member.status, 'is_member:', member.is_member);
   let allowed = ALLOWED.has(member.status);
   if (member.status === 'restricted') allowed = member.is_member === true;
 
@@ -111,8 +146,15 @@ async function isAllowedMember(userId) {
 async function authUser(request) {
   const initData = request.headers.get('X-Init-Data') || '';
   const user = await validateInitData(initData, BOT_TOKEN());
-  if (!user || user.is_bot) return null;
-  if (!(await isAllowedMember(user.id))) return null;
+  if (!user || user.is_bot) {
+    console.log('[auth] authUser failed at initData/is_bot stage');
+    return null;
+  }
+  if (!(await isAllowedMember(user.id))) {
+    console.log('[auth] authUser failed at membership stage for', user.id);
+    return null;
+  }
+  console.log('[auth] authUser OK for', user.id);
   return user;
 }
 

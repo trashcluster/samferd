@@ -10,7 +10,7 @@ if (tg) {
 }
 
 // Set your backend Worker URL here (or via ?api= query param for easy testing).
-const API = new URLSearchParams(location.search).get('api') || 'https://YOUR_WORKER.workers.dev';
+const API = new URLSearchParams(location.search).get('api') || 'https://samferd.info473.workers.dev';
 
 const $ = (id) => document.getElementById(id);
 

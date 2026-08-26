@@ -7,7 +7,7 @@ compatibility_date = "2024-01-01"
 # then paste the returned id below.
 [[kv_namespaces]]
 binding = "SAMFERD"
-id = "YOUR_KV_NAMESPACE_ID"
+id = "2b9d139147244ee5be8ef9f82e06e0b6"
 
 # Secrets (set with `wrangler secret put`, never in this file):
 #   BOT_TOKEN  — the bot's API token (from @BotFather)

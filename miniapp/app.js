@@ -111,24 +111,91 @@ function formatDate(iso) {
 // Rendering
 // ---------------------------------------------------------------------------
 
-function renderBoard(flights, cars) {
-  const carsOut = (cars || []).filter((c) => c.direction !== 'return');
-  const carsReturn = (cars || []).filter((c) => c.direction === 'return');
+// The travel day currently selected. `null` = auto (most recent day).
+let selectedDay = null;
+let allCars = [];
 
-  // Three separate white canvases, each with its own title and content.
+function renderBoard(flights, cars) {
+  allCars = cars || [];
+
+  // Gather all travel days: flight departure dates + car dates.
+  const days = new Set();
+  (flights || []).forEach((f) => days.add(f.departureDate));
+  (cars || []).forEach((c) => { if (c.date) days.add(c.date); });
+  // Sort ascending; we'll show most-recent first (latest on the left/none default).
+  const sortedDays = [...days].sort(); // ascending
+
+  // If no days, nothing to show.
+  if (!sortedDays.length) {
+    $('day-tabs').innerHTML = '';
+    renderDayPanel('');
+    return;
+  }
+
+  // Most recent day is the home/default. "Most recent" = max date string.
+  const homeDay = sortedDays[sortedDays.length - 1];
+  if (selectedDay === null || !days.has(selectedDay)) {
+    selectedDay = homeDay;
+  }
+
+  renderDayTabs(sortedDays);
+  renderDayPanel(selectedDay, flights, cars);
+}
+
+function renderDayTabs(sortedDays) {
+  // Show tabs left→right = most recent first (so current is home on the left).
+  const ordered = [...sortedDays].sort().reverse();
+  $('day-tabs').innerHTML = ordered.map((d) => {
+    const label = tabLabel(d);
+    const active = d === selectedDay ? ' active' : '';
+    return `<button class="day-tab${active}" data-day="${escapeHtml(d)}">${escapeHtml(label)}</button>`;
+  }).join('');
+
+  $('day-tabs').querySelectorAll('.day-tab').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      selectedDay = btn.dataset.day;
+      renderDayTabs(sortedDays);
+      renderDayPanel(selectedDay, allFlights, allCars);
+    });
+  });
+}
+
+// Short label for a tab: "15 Oct" (or "Today"/"Tomorrow").
+function tabLabel(iso) {
+  if (!iso) return '';
+  const today = new Date().toISOString().slice(0, 10);
+  const [y, m, d] = iso.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  const short = dt.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+  if (iso === today) return 'Today';
+  // Tomorrow
+  const tm = new Date(Date.UTC(y, m - 1, d + 1)).toISOString().slice(0, 10) === today ? null : null;
+  const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+  if (iso === tomorrow) return 'Tomorrow';
+  return short;
+}
+
+function renderDayPanel(day, flights, cars) {
+  flights = flights || allFlights;
+  cars = cars || allCars;
+
+  const dayFlights = flights.filter((f) => f.departureDate === day);
+  const dayCars = cars.filter((c) => c.date === day);
+  const carsOut = dayCars.filter((c) => c.direction !== 'return');
+  const carsReturn = dayCars.filter((c) => c.direction === 'return');
+
   $('board-cars-out').innerHTML =
     '<h2 class="section-title">🚗 Cars to the airport</h2>' +
     (carsOut.length ? carsOut.map(renderCar).join('') : '<div class="empty">No cars to the airport yet.</div>');
 
   $('board-flights').innerHTML =
     '<h2 class="section-title">🛫 Flights</h2>' +
-    (flights.length ? flights.map(renderFlight).join('') : '<div class="empty">No upcoming flights yet.</div>');
+    (dayFlights.length ? dayFlights.map(renderFlight).join('') : '<div class="empty">No flights this day.</div>');
 
   $('board-cars-return').innerHTML =
     '<h2 class="section-title">🚗 Cars from the arrival airport</h2>' +
     (carsReturn.length ? carsReturn.map(renderCar).join('') : '<div class="empty">No cars from the airport yet.</div>');
 
-  // Bind actions across all three canvases.
   document.querySelectorAll('[data-act]').forEach((btn) => {
     btn.addEventListener('click', () => handleAction(btn.dataset.act, Number(btn.dataset.id)));
   });
@@ -248,6 +315,7 @@ async function createFlight() {
     await call('POST', '/api/flights', { flightNumber, departureDate });
     $('flight-number').value = '';
     $('departure-date').value = '';
+    selectedDay = departureDate; // show the newly added day
     await refresh();
     if (tg) tg.HapticFeedback.notificationOccurred('success');
   } catch (e) {
@@ -259,9 +327,15 @@ async function createCar() {
   const freeSeats = Number($('car-seats').value) || 3;
   const note = $('car-note').value.trim();
   const direction = $('car-direction').value;
+  const date = $('car-date').value;
+  if (!date) {
+    toast('Pick a travel date for the car.');
+    return;
+  }
   try {
-    await call('POST', '/api/cars', { freeSeats, note, direction });
+    await call('POST', '/api/cars', { freeSeats, note, direction, date });
     $('car-note').value = '';
+    selectedDay = date; // show the newly added day
     await refresh();
     if (tg) tg.HapticFeedback.notificationOccurred('success');
   } catch (e) {

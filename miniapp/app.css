@@ -57,6 +57,33 @@ body {
 
 .mt { margin-top: 16px; }
 
+.day-tabs {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 4px 0 12px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.day-tab {
+  flex: 0 0 auto;
+  padding: 8px 14px;
+  border: 1px solid var(--tg-theme-section-separator-color, #ddd);
+  border-radius: 999px;
+  background: var(--tg-theme-bg-color, #fff);
+  color: var(--tg-theme-text-color, #000);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.day-tab.active {
+  background: var(--tg-theme-button-color, #2ea6ff);
+  color: var(--tg-theme-button-text-color, #fff);
+  border-color: var(--tg-theme-button-color, #2ea6ff);
+}
+
 .section-title {
   margin: 0 0 10px;
   font-size: 15px;

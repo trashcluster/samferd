@@ -183,6 +183,23 @@ async function saveBoard(board) {
   await env.SAMFERD.put('board', JSON.stringify(board));
 }
 
+function todayISO() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+// Samferd is planning-only, no archive: drop past flights and past cars.
+// Returns true if anything was removed (so callers can persist the change).
+function prunePast(board) {
+  const today = todayISO();
+  const before = board.flights.length + (board.cars || []).length;
+  board.flights = board.flights.filter((f) => f.departureDate >= today);
+  // Cars must carry a date to be grouped by day; missing-date legacy rows and
+  // past dates are removed.
+  board.cars = (board.cars || []).filter((c) => c.date && c.date >= today);
+  const after = board.flights.length + board.cars.length;
+  return before !== after;
+}
+
 function userInfo(u) {
   return {
     id: u.id,
@@ -289,6 +306,7 @@ async function handle(request) {
   }
 
   const board = await loadBoard();
+  if (prunePast(board)) await saveBoard(board);
   const findFlight = (id) => board.flights.find((f) => f.id === id);
 
   // ---- auth check ----------------------------------------------------------
@@ -354,6 +372,13 @@ async function handle(request) {
         return json({ ok: false, error: 'already', message: 'You are already on this flight.' }, 409);
       }
       flight.passengers.push({ ...userInfo(user), note: null });
+      // One flight per day: joining a flight removes the user from every other
+      // flight departing on the SAME date. Different days are unaffected.
+      for (const other of board.flights) {
+        if (other.id !== flight.id && other.departureDate === flight.departureDate) {
+          other.passengers = other.passengers.filter((p) => p.id !== user.id);
+        }
+      }
     } else {
       const before = flight.passengers.length;
       flight.passengers = flight.passengers.filter((p) => p.id !== user.id);
@@ -375,11 +400,16 @@ async function handle(request) {
     const freeSeats = Math.max(1, Math.min(20, Number(body.freeSeats) || 0));
     // Direction: 'outbound' = to the departure airport, 'return' = from the arrival airport.
     const direction = body.direction === 'return' ? 'return' : 'outbound';
+    const date = String(body.date || '');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return json({ ok: false, error: 'bad_date', message: 'Travel date must be YYYY-MM-DD.' }, 400);
+    }
     const car = {
       id: board.nextId++,
       driver: userInfo(user),
       freeSeats,
       direction,
+      date,
       note: String(body.note || '').slice(0, 200) || null,
       riders: [],
     };

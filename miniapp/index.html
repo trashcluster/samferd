@@ -24,6 +24,9 @@
 
   <!-- Main app -->
   <main id="app" class="hidden">
+    <!-- Day tabs: one button per travel day, most recent on the left -->
+    <div id="day-tabs" class="day-tabs"></div>
+
     <!-- Three separate white canvases: cars-out, flights, cars-return -->
     <section class="panel" id="board-cars-out"></section>
     <section class="panel" id="board-flights"></section>
@@ -47,6 +50,9 @@
           <option value="outbound">To the departure airport</option>
           <option value="return">From the arrival airport</option>
         </select>
+      </label>
+      <label>Travel date
+        <input id="car-date" type="date" />
       </label>
       <label>Free seats
         <input id="car-seats" type="number" min="1" max="20" value="3" />

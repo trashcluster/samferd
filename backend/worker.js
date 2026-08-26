@@ -373,10 +373,13 @@ async function handle(request) {
   if (path === '/api/cars' && method === 'POST') {
     const body = await request.json().catch(() => ({}));
     const freeSeats = Math.max(1, Math.min(20, Number(body.freeSeats) || 0));
+    // Direction: 'outbound' = to the departure airport, 'return' = from the arrival airport.
+    const direction = body.direction === 'return' ? 'return' : 'outbound';
     const car = {
       id: board.nextId++,
       driver: userInfo(user),
       freeSeats,
+      direction,
       note: String(body.note || '').slice(0, 200) || null,
       riders: [],
     };
@@ -410,6 +413,20 @@ async function handle(request) {
         return json({ ok: false, error: 'not_found', message: 'You are not in this car.' }, 404);
       }
     }
+    await saveBoard(board);
+    return json({ ok: true, car });
+  }
+
+  // Toggle a car's direction (driver or admin only).
+  const dm = path.match(/^\/api\/cars\/(\d+)\/direction$/);
+  if (dm && method === 'POST') {
+    const id = Number(dm[1]);
+    const car = board.cars.find((c) => c.id === id);
+    if (!car) return json({ ok: false, error: 'not_found', message: 'Car not found.' }, 404);
+    if (car.driver.id !== user.id && !ADMIN_IDS.has(user.id)) {
+      return json({ ok: false, error: 'forbidden', message: 'Only the driver can change this.' }, 403);
+    }
+    car.direction = car.direction === 'return' ? 'outbound' : 'return';
     await saveBoard(board);
     return json({ ok: true, car });
   }

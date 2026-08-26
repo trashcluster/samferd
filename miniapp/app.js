@@ -115,87 +115,31 @@ function renderBoard(flights, cars) {
   const board = $('board');
   const parts = [];
 
+  const carsOut = (cars || []).filter((c) => c.direction !== 'return');
+  const carsReturn = (cars || []).filter((c) => c.direction === 'return');
+
+  // --- Cars to the departure airport (above flights) ------------------------
+  parts.push('<h2 class="section-title">🚗 Cars to the airport</h2>');
+  if (carsOut.length) {
+    parts.push(carsOut.map(renderCar).join(''));
+  } else {
+    parts.push('<div class="empty">No cars to the airport yet.</div>');
+  }
+
   // --- Flights (passengers are the main focus) ------------------------------
+  parts.push('<h2 class="section-title mt">🛫 Flights</h2>');
   if (flights.length) {
-    parts.push('<h2 class="section-title">🛫 Flights</h2>');
-    parts.push(flights.map((f) => {
-      const route = f.origin && f.destination
-        ? `<span class="route-origin">${escapeHtml(f.origin)}</span> → <span class="route-dest">${escapeHtml(f.destination)}</span>`
-        : '<span class="route-na">route n/a</span>';
-      const status = f.status ? ` · ${escapeHtml(f.status)}` : '';
-
-      const dateLine = formatDate(f.departureDate);
-      const timeParts = [f.departureTime, f.terminal ? `T${escapeHtml(f.terminal)}` : '', f.gate ? `G${escapeHtml(f.gate)}` : ''].filter(Boolean).join(' ');
-      const timeLine = timeParts ? ` · ${escapeHtml(timeParts)}` : '';
-
-      const onFlight = f.passengers.some((p) => p.id === me);
-      const isCreator = f.createdBy === me;
-
-      const people = f.passengers.length
-        ? f.passengers.map((p) => {
-            return `<li><span>${escapeHtml(p.name)}</span></li>`;
-          }).join('')
-        : '<li class="empty">(no passengers yet)</li>';
-
-      const actions = [
-        onFlight
-          ? `<button class="btn small" data-act="leave-flight" data-id="${f.id}">Leave</button>`
-          : `<button class="btn small primary" data-act="join-flight" data-id="${f.id}">Join</button>`,
-        isCreator
-          ? `<button class="btn small danger" data-act="del-flight" data-id="${f.id}">Delete</button>`
-          : '',
-      ].join('');
-
-      return `
-        <div class="flight">
-          <div class="flight-head">
-            <span class="flight-number">${escapeHtml(f.flightNumber)}</span>
-            <span class="flight-date">${escapeHtml(dateLine)}${timeLine}</span>
-          </div>
-          <div class="flight-route">${route}${status}</div>
-          <ul class="passengers">${people}</ul>
-          <div class="flight-actions">${actions}</div>
-        </div>`;
-    }).join(''));
+    parts.push(flights.map(renderFlight).join(''));
   } else {
     parts.push('<div class="empty">No upcoming flights yet.</div>');
   }
 
-  // --- Cars -----------------------------------------------------------------
-  if (cars && cars.length) {
-    parts.push('<h2 class="section-title mt">🚗 Cars</h2>');
-    parts.push(cars.map((c) => {
-      const remaining = c.freeSeats - c.riders.length;
-      const isDriver = c.driver.id === me;
-      const isRider = c.riders.some((r) => r.id === me);
-
-      const riders = c.riders.length
-        ? c.riders.map((r) => `<li><span>${escapeHtml(r.name)}</span></li>`).join('')
-        : '<li class="empty">(no riders yet)</li>';
-
-      const actions = [
-        isDriver
-          ? `<button class="btn small danger" data-act="del-car" data-id="${c.id}">Delete</button>`
-          : isRider
-            ? `<button class="btn small" data-act="leave-car" data-id="${c.id}">Leave</button>`
-            : remaining > 0
-              ? `<button class="btn small primary" data-act="join-car" data-id="${c.id}">Join</button>`
-              : '<span class="full-badge">Full</span>',
-      ].join('');
-
-      return `
-        <div class="flight">
-          <div class="flight-head">
-            <span class="flight-number">🚗 ${escapeHtml(c.driver.name)}</span>
-            <span class="flight-date">${remaining} free seat${remaining === 1 ? '' : 's'}</span>
-          </div>
-          ${c.note ? `<div class="flight-route">${escapeHtml(c.note)}</div>` : ''}
-          <ul class="passengers">${riders}</ul>
-          <div class="flight-actions">${actions}</div>
-        </div>`;
-    }).join(''));
+  // --- Cars from the arrival airport (below flights) ------------------------
+  parts.push('<h2 class="section-title mt">🚗 Cars from the arrival airport</h2>');
+  if (carsReturn.length) {
+    parts.push(carsReturn.map(renderCar).join(''));
   } else {
-    parts.push('<h2 class="section-title mt">🚗 Cars</h2><div class="empty">No cars offered yet.</div>');
+    parts.push('<div class="empty">No cars from the airport yet.</div>');
   }
 
   board.innerHTML = parts.join('');
@@ -203,6 +147,78 @@ function renderBoard(flights, cars) {
   board.querySelectorAll('[data-act]').forEach((btn) => {
     btn.addEventListener('click', () => handleAction(btn.dataset.act, Number(btn.dataset.id)));
   });
+}
+
+function renderFlight(f) {
+  const route = f.origin && f.destination
+    ? `<span class="route-origin">${escapeHtml(f.origin)}</span> → <span class="route-dest">${escapeHtml(f.destination)}</span>`
+    : '<span class="route-na">route n/a</span>';
+  const status = f.status ? ` · ${escapeHtml(f.status)}` : '';
+
+  const dateLine = formatDate(f.departureDate);
+  const timeParts = [f.departureTime, f.terminal ? `T${escapeHtml(f.terminal)}` : '', f.gate ? `G${escapeHtml(f.gate)}` : ''].filter(Boolean).join(' ');
+  const timeLine = timeParts ? ` · ${escapeHtml(timeParts)}` : '';
+
+  const onFlight = f.passengers.some((p) => p.id === me);
+  const isCreator = f.createdBy === me;
+
+  const people = f.passengers.length
+    ? f.passengers.map((p) => `<li><span>${escapeHtml(p.name)}</span></li>`).join('')
+    : '<li class="empty">(no passengers yet)</li>';
+
+  const actions = [
+    onFlight
+      ? `<button class="btn small" data-act="leave-flight" data-id="${f.id}">Leave</button>`
+      : `<button class="btn small primary" data-act="join-flight" data-id="${f.id}">Join</button>`,
+    isCreator
+      ? `<button class="btn small danger" data-act="del-flight" data-id="${f.id}">Delete</button>`
+      : '',
+  ].join('');
+
+  return `
+    <div class="flight">
+      <div class="flight-head">
+        <span class="flight-number">${escapeHtml(f.flightNumber)}</span>
+        <span class="flight-date">${escapeHtml(dateLine)}${timeLine}</span>
+      </div>
+      <div class="flight-route">${route}${status}</div>
+      <ul class="passengers">${people}</ul>
+      <div class="flight-actions">${actions}</div>
+    </div>`;
+}
+
+function renderCar(c) {
+  const remaining = c.freeSeats - c.riders.length;
+  const isDriver = c.driver.id === me;
+  const isRider = c.riders.some((r) => r.id === me);
+
+  const riders = c.riders.length
+    ? c.riders.map((r) => `<li><span>${escapeHtml(r.name)}</span></li>`).join('')
+    : '<li class="empty">(no riders yet)</li>';
+
+  const actions = [
+    isDriver
+      ? `<button class="btn small danger" data-act="del-car" data-id="${c.id}">Delete</button>`
+      : isRider
+        ? `<button class="btn small" data-act="leave-car" data-id="${c.id}">Leave</button>`
+        : remaining > 0
+          ? `<button class="btn small primary" data-act="join-car" data-id="${c.id}">Join</button>`
+          : '<span class="full-badge">Full</span>',
+    isDriver
+      ? `<button class="btn small" data-act="toggle-car-direction" data-id="${c.id}">⇄ Switch</button>`
+      : '',
+  ].join('');
+
+  return `
+    <div class="flight">
+      <div class="flight-head">
+        <span class="flight-number">🚗 ${escapeHtml(c.driver.name)}</span>
+        <span class="flight-date">${remaining} free seat${remaining === 1 ? '' : 's'}</span>
+      </div>
+      ${c.note ? `<div class="flight-route">${escapeHtml(c.note)}</div>` : ''}
+      <ul class="passengers">${riders}</ul>
+      <div class="flight-actions">${actions}</div>
+    </div>`;
 }
 
 // ---------------------------------------------------------------------------
@@ -217,6 +233,7 @@ async function handleAction(act, id) {
     if (act === 'join-car') await call('POST', `/api/cars/${id}/join`);
     if (act === 'leave-car') await call('POST', `/api/cars/${id}/leave`);
     if (act === 'del-car') await call('DELETE', '/api/cars', { id });
+    if (act === 'toggle-car-direction') await call('POST', `/api/cars/${id}/direction`);
     await refresh();
     if (tg) tg.HapticFeedback.notificationOccurred('success');
   } catch (e) {
@@ -256,8 +273,9 @@ async function createFlight() {
 async function createCar() {
   const freeSeats = Number($('car-seats').value) || 3;
   const note = $('car-note').value.trim();
+  const direction = $('car-direction').value;
   try {
-    await call('POST', '/api/cars', { freeSeats, note });
+    await call('POST', '/api/cars', { freeSeats, note, direction });
     $('car-note').value = '';
     await refresh();
     if (tg) tg.HapticFeedback.notificationOccurred('success');

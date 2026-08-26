@@ -1,0 +1,265 @@
+// backend/worker.js — Samferd Mini App backend (Cloudflare Worker).
+//
+// A single serverless function that:
+//   1. Validates Telegram Mini App `initData` (HMAC-SHA256 with the bot token).
+//   2. Enforces group membership via the Bot API `getChatMember`.
+//   3. Stores and serves the shared flight board (KV storage).
+//
+// The bot itself is NOT interactive — it exists only to host the Mini App and
+// provide the Bot API token used for initData validation + membership checks.
+//
+// Secrets are set with `wrangler secret put` (BOT_TOKEN, GROUP_ID). The KV
+// namespace is bound as SAMFERD (see wrangler.toml).
+
+const encoder = new TextEncoder();
+
+// ---------------------------------------------------------------------------
+// Config (secrets come from env bindings; see wrangler.toml)
+// ---------------------------------------------------------------------------
+
+const GROUP_ID = () => Number(env.GROUP_ID);
+const BOT_TOKEN = () => env.BOT_TOKEN;
+
+// CORS: the Mini App is served from Telegram's webview; allow any origin.
+const CORS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET,POST,DELETE,OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, X-Init-Data',
+};
+
+function json(data, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { 'Content-Type': 'application/json', ...CORS },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// initData validation (Telegram Mini Apps security)
+// ---------------------------------------------------------------------------
+
+async function hmacSha256(data, key) {
+  const k = await crypto.subtle.importKey(
+    'raw', encoder.encode(key), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'],
+  );
+  return crypto.subtle.sign('HMAC', k, encoder.encode(data));
+}
+
+async function hmacHex(data, key) {
+  const sig = new Uint8Array(await hmacSha256(data, key));
+  return [...sig].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+/** Validate initData; returns the parsed user object or null. */
+async function validateInitData(initData, botToken) {
+  if (!initData) return null;
+  const params = new URLSearchParams(initData);
+  const hash = params.get('hash');
+  if (!hash) return null;
+  params.delete('hash');
+
+  const dataCheckString = [...params.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([k, v]) => `${k}=${v}`)
+    .join('\n');
+
+  const secretKey = await hmacSha256('WebAppData', botToken);
+  const computed = await hmacHex(dataCheckString, secretKey);
+  if (computed !== hash) return null;
+
+  // Optional freshness check: reject initData older than ~2 days.
+  const authDate = Number(params.get('auth_date') || 0);
+  if (authDate && Date.now() / 1000 - authDate > 172800) return null;
+
+  try {
+    return JSON.parse(params.get('user'));
+  } catch {
+    return null;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Group membership (per the Mini Apps security guidance)
+// ---------------------------------------------------------------------------
+
+const ALLOWED = new Set(['creator', 'administrator', 'member']);
+
+async function getMembership(userId) {
+  const url = `https://api.telegram.org/bot${BOT_TOKEN()}/getChatMember`
+    + `?chat_id=${GROUP_ID()}&user_id=${userId}`;
+  const res = await fetch(url);
+  const body = await res.json();
+  if (!body.ok) return { status: 'left' };
+  return body.result;
+}
+
+async function isAllowedMember(userId) {
+  // Short-term cache (5 min) to avoid hammering getChatMember on every call.
+  const cacheKey = `member:${userId}`;
+  const cached = await env.SAMFERD.get(cacheKey);
+  if (cached !== null) return cached === 'yes';
+
+  const member = await getMembership(userId);
+  let allowed = ALLOWED.has(member.status);
+  if (member.status === 'restricted') allowed = member.is_member === true;
+
+  await env.SAMFERD.put(cacheKey, allowed ? 'yes' : 'no', { expirationTtl: 300 });
+  return allowed;
+}
+
+/** Resolve the authenticated member from a request, or null. */
+async function authUser(request) {
+  const initData = request.headers.get('X-Init-Data') || '';
+  const user = await validateInitData(initData, BOT_TOKEN());
+  if (!user || user.is_bot) return null;
+  if (!(await isAllowedMember(user.id))) return null;
+  return user;
+}
+
+// ---------------------------------------------------------------------------
+// Board storage (single JSON document in KV)
+// ---------------------------------------------------------------------------
+
+async function loadBoard() {
+  const raw = await env.SAMFERD.get('board');
+  return raw ? JSON.parse(raw) : { nextId: 1, flights: [] };
+}
+
+async function saveBoard(board) {
+  await env.SAMFERD.put('board', JSON.stringify(board));
+}
+
+function userInfo(u) {
+  return {
+    id: u.id,
+    name: [u.first_name, u.last_name].filter(Boolean).join(' ') || u.username || `#${u.id}`,
+    username: u.username || null,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Request handler
+// ---------------------------------------------------------------------------
+
+async function handle(request) {
+  const url = new URL(request.url);
+  const path = url.pathname;
+  const method = request.method;
+
+  if (method === 'OPTIONS') {
+    return new Response(null, { status: 204, headers: CORS });
+  }
+
+  // Auth gate for every API route.
+  const user = await authUser(request);
+  if (!user) {
+    return json({ ok: false, error: 'forbidden', message: 'You must be a member of the group.' }, 403);
+  }
+
+  const board = await loadBoard();
+  const findFlight = (id) => board.flights.find((f) => f.id === id);
+
+  // ---- auth check ----------------------------------------------------------
+  if (path === '/api/auth') {
+    return json({ ok: true, user: userInfo(user) });
+  }
+
+  // ---- board ---------------------------------------------------------------
+  if (path === '/api/board' && method === 'GET') {
+    const flights = board.flights
+      .filter((f) => f.departureDate >= new Date().toISOString().slice(0, 10))
+      .sort((a, b) => a.departureDate.localeCompare(b.departureDate) || a.id - b.id);
+    return json({ ok: true, flights, me: user.id });
+  }
+
+  // ---- create flight -------------------------------------------------------
+  if (path === '/api/flights' && method === 'POST') {
+    const body = await request.json().catch(() => ({}));
+    const flightNumber = String(body.flightNumber || '').toUpperCase().replace(/[\s-]/g, '');
+    const departureDate = String(body.departureDate || '');
+    if (!/^[A-Z0-9]{2}\d{1,4}$/.test(flightNumber)) {
+      return json({ ok: false, error: 'bad_flight', message: 'Invalid flight number.' }, 400);
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(departureDate)) {
+      return json({ ok: false, error: 'bad_date', message: 'Date must be YYYY-MM-DD.' }, 400);
+    }
+    if (board.flights.some((f) => f.flightNumber === flightNumber && f.departureDate === departureDate)) {
+      return json({ ok: false, error: 'duplicate', message: 'That flight already exists.' }, 409);
+    }
+    const flight = {
+      id: board.nextId++,
+      flightNumber,
+      departureDate,
+      origin: body.origin || null,
+      destination: body.destination || null,
+      status: body.status || null,
+      createdBy: user.id,
+      passengers: [],
+    };
+    board.flights.push(flight);
+    await saveBoard(board);
+    return json({ ok: true, flight });
+  }
+
+  // ---- join / leave / note / delete ---------------------------------------
+  const m = path.match(/^\/api\/flights\/(\d+)\/(join|leave)$/);
+  if (m && method === 'POST') {
+    const id = Number(m[1]);
+    const action = m[2];
+    const flight = findFlight(id);
+    if (!flight) return json({ ok: false, error: 'not_found', message: 'Flight not found.' }, 404);
+
+    if (action === 'join') {
+      if (flight.passengers.some((p) => p.id === user.id)) {
+        return json({ ok: false, error: 'already', message: 'You are already on this flight.' }, 409);
+      }
+      flight.passengers.push({ ...userInfo(user), note: null });
+    } else {
+      const before = flight.passengers.length;
+      flight.passengers = flight.passengers.filter((p) => p.id !== user.id);
+      if (flight.passengers.length === before) {
+        return json({ ok: false, error: 'not_found', message: 'You are not on this flight.' }, 404);
+      }
+    }
+    await saveBoard(board);
+    return json({ ok: true, flight });
+  }
+
+  if (path === '/api/note' && method === 'POST') {
+    const body = await request.json().catch(() => ({}));
+    const note = String(body.note || '').slice(0, 200);
+    let changed = 0;
+    for (const f of board.flights) {
+      const p = f.passengers.find((x) => x.id === user.id);
+      if (p) { p.note = note; changed++; }
+    }
+    if (changed === 0) {
+      return json({ ok: false, error: 'none', message: 'Join a flight first.' }, 404);
+    }
+    await saveBoard(board);
+    return json({ ok: true });
+  }
+
+  if (path === '/api/flights' && method === 'DELETE') {
+    const body = await request.json().catch(() => ({}));
+    const id = Number(body.id);
+    const flight = findFlight(id);
+    if (!flight) return json({ ok: false, error: 'not_found', message: 'Flight not found.' }, 404);
+    if (flight.createdBy !== user.id) {
+      return json({ ok: false, error: 'forbidden', message: 'Only the creator can delete it.' }, 403);
+    }
+    board.flights = board.flights.filter((f) => f.id !== id);
+    await saveBoard(board);
+    return json({ ok: true });
+  }
+
+  return json({ ok: false, error: 'not_found', message: 'Not found.' }, 404);
+}
+
+export default {
+  async fetch(request, env, ctx) {
+    // Bind globals used by helpers above.
+    globalThis.env = env;
+    return handle(request);
+  },
+};

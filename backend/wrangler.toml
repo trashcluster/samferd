@@ -1,0 +1,14 @@
+name = "samferd"
+main = "worker.js"
+compatibility_date = "2024-01-01"
+
+# The KV namespace backing the shared board. Create it with:
+#   wrangler kv namespace create SAMFERD
+# then paste the returned id below.
+[[kv_namespaces]]
+binding = "SAMFERD"
+id = "YOUR_KV_NAMESPACE_ID"
+
+# Secrets (set with `wrangler secret put`, never in this file):
+#   BOT_TOKEN  — the bot's API token (from @BotFather)
+#   GROUP_ID   — the group's chat id, e.g. -100123456789

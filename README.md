@@ -1,200 +1,127 @@
-# Samferd
+# Samferd — shared flight board (Telegram Mini App)
 
-**Etymology:** from *sam-* (“co-”) + *ferd* (“journey”).
-**Noun** — *samferd*: travel, journey together with someone.
+**Samferd** is a Telegram Mini App that lets a group keep one shared, always-in-sync
+board of everyone's upcoming flights. Members add their flight (number + departure
+date), the board shows everyone read-only, and each person can set their own note.
 
-Samferd is a self-hostable, non-commercial web app that helps a group of people
-coordinate a shared trip: minimize the number of cars to the airport, compare
-flight prices across airports, and split car + parking costs fairly. It informs
-and coordinates — it never books or charges anything.
-
-📄 **Specification:** [docs/spec.md](docs/spec.md) · [docs/data-model.md](docs/data-model.md) · [docs/api.md](docs/api.md) · [docs/architecture.md](docs/architecture.md)
+All interaction happens inside the Mini App. The bot itself is **not interactive** —
+it exists only to host the Mini App and to authenticate members.
 
 ---
 
-## Features
+## What it does
 
-- **Invite-only access** — no public sign-up. Organizers generate multi-user invite
-  links that expire automatically when the event passes.
-- **Events** with multiple origin & destination airports, a single per-event currency
-  (default EUR), and fixed dates.
-- **Car pooling** — drivers offer seats; flyers request a seat; the driver approves.
-  Per-person cost split (car + parking) is computed automatically.
-- **Flight prices** — cached top-3 offers per route via **Google Flights** (open-source
-  `fast-flights` scraper), with search deep links. Scheduled + manual refresh.
-- **Booked-flight tracking** — declare your flight number/date so everyone sees what
-  flight people took. (Automatic flight-status enrichment is not available with the
-  Google Flights provider; entries are shown as declared.)
-- **Better-route email alerts** (daily digest) with a price/legs/duration comparison.
-- **Multi-language** UI (default French, English included).
-- **GDPR** — self-service JSON export and account deletion.
+- **Members only** — every request is validated against your group membership,
+  server-side, using Telegram's `initData` HMAC check + `getChatMember`.
+- **Create flights** — flight number + departure date, from inside the app.
+- **Join / leave** — add or remove yourself on any flight.
+- **Your own note** — a short note next to your name (e.g. "window seat please").
+- **Shared read-only board** — everyone sees the same synced list.
+- **Optional auto-enrichment** — see below.
 
 ---
 
-## Quick start (Docker Compose)
+## Architecture
 
-The easiest way to run Samferd is with Docker Compose (PostgreSQL + Redis + web +
-Celery worker + beat).
+A Mini App is a web page, so it needs two pieces:
 
-### 1. Prerequisites
-
-- [Docker](https://docs.docker.com/get-docker/) with Compose v2.
-
-### 2. Configure
-
-```bash
-cp .env.example .env
-```
-
-Edit `.env` and set at least:
-
-| Variable | Required | Purpose |
+| Piece | What it is | Where it runs |
 |---|---|---|
-| `SECRET_KEY` | ✅ | Long random string. Generate with `python -c "import secrets; print(secrets.token_urlsafe(50))"` |
-| `ALLOWED_HOSTS` | ✅ | Your domain or `localhost,127.0.0.1` |
-| `CSRF_TRUSTED_ORIGINS` | ✅ | e.g. `https://samferd.example.com` |
-| `DEBUG` | ✅ | `false` in production |
-| `DATABASE_URL` | ✅ | `postgres://samferd:samferd@db:5432/samferd` (matches compose) |
-| `REDIS_URL` | ✅ | `redis://redis:6379/0` (matches compose) |
-| `DEFAULT_LANGUAGE` | | `fr` (default) or `en` |
-| `ENABLE_PASSWORD_AUTH` | | `true` to allow email/password login |
+| **Frontend** | `miniapp/` — HTML/CSS/JS, talks to Telegram via `Telegram.WebApp` | Any static HTTPS host (see below) |
+| **Backend** | `backend/` — a single Cloudflare Worker (HTTP API) | Cloudflare Workers (serverless, free tier) |
 
-### 3. Fare provider (Google Flights)
-
-Samferd gets flight prices from **Google Flights** via the open-source
-[`fast-flights`](https://github.com/AWeirdDev/flights) scraper. **No API credentials are
-required.**
-
-Set in `.env`:
-
-```bash
-FARE_PROVIDER=google_flights
-FARE_PROVIDER_LANGUAGE=en   # language hint for Google Flights display names
-```
-
-> **Notes & limitations:**
-> - Prices are whole-unit integers in the (hinted) event currency; cents are not shown.
-> - The scraper sends a small politeness delay between route queries to avoid being
->   rate-limited by Google.
-> - Flight-number **enrichment is not available** with this provider — booked flights
->   are shown as declared and flagged "unverified".
-> - If Google changes their page, a refresh may return no offers; the app degrades
->   gracefully (the price table simply shows "No offers yet").
-
-### 4. Optional: OIDC (SSO) login
-
-If you have an OIDC provider (Keycloak, Authentik, Google, GitHub…), set:
-
-```bash
-OIDC_RP_CLIENT_ID=...
-OIDC_RP_CLIENT_SECRET=...
-OIDC_OP_DISCOVERY_URL=https://your-provider/.well-known/openid-configuration
-```
-
-Account creation is still invite-only: OIDC only links an existing account to your
-provider. Without OIDC, email/password signup (via invite link) is used.
-
-### 5. Optional: email notifications
-
-For seat-request and better-route emails, configure SMTP:
-
-```bash
-EMAIL_URL=smtp://user:pass@smtp.example.com:587/?ssl=true
-DEFAULT_FROM_EMAIL=samferd@example.com
-```
-
-### 6. Run
-
-```bash
-docker compose up -d --build
-```
-
-Then:
-
-```bash
-# Create your first organizer (grants can_organize + superuser for the admin site)
-docker compose exec web python manage.py create_organizer --email you@example.com --admin --password 'a-strong-password'
-
-# Seed the built-in airport list (or pass --file airports.csv from ourairports.com)
-docker compose exec web python manage.py seed_airports
-```
-
-Open <http://localhost:8000>. Log in, create an event, add airports, and generate an
-invite link to share with your group.
-
-> The admin site is at `/admin/`. The `--admin` flag above makes your user a superuser.
+The backend validates `initData`, checks group membership, and stores the board in
+Cloudflare KV. There is no always-on server and no bot message handling.
 
 ---
 
-## Local development (no Docker)
+## Requirements
+
+- A [Telegram bot](https://core.telegram.org/bots#how-do-i-create-a-bot) (via
+  [@BotFather](https://t.me/botfather)) — used for the Mini App + the Bot API token.
+- A group/supergroup the bot is **an administrator of** (for reliable membership checks).
+- A [Cloudflare](https://cloudflare.com) account (free) for the backend Worker + KV.
+
+---
+
+## Setup
+
+### 1. Create the bot and Mini App
+
+1. Create a bot with @BotFather.
+2. @BotFather → your bot → **Bot Settings → Configure Mini App** → set the Mini App
+   URL (your static frontend URL, from step 3 below). Enable the Mini App.
+
+### 2. Deploy the backend
 
 ```bash
-python -m venv .venv
-# Windows: .venv\Scripts\activate   |   macOS/Linux: source .venv/bin/activate
-pip install -r requirements.txt
+cd backend
+npm install -g wrangler      # Cloudflare Workers CLI
 
-cp .env.example .env   # set DATABASE_URL=sqlite:///db.sqlite3 for a quick start
+# Create the KV namespace and paste its id into wrangler.toml
+wrangler kv namespace create SAMFERD
 
-python manage.py migrate
-python manage.py seed_airports
-python manage.py create_organizer --email you@example.com --admin --password 'a-strong-password'
-python manage.py runserver
+# Set secrets (never committed to the repo)
+wrangler secret put BOT_TOKEN      # your bot token from @BotFather
+wrangler secret put GROUP_ID       # the group chat id, e.g. -100123456789
+
+wrangler deploy
 ```
 
-For background jobs locally, run Redis and:
+Note the Worker URL (e.g. `https://samferd.yourname.workers.dev`).
 
-```bash
-celery -A samferd worker --loglevel=info
-celery -A samferd beat --loglevel=info
-```
+### 3. Host the frontend
+
+Serve the `miniapp/` folder on any static HTTPS host — GitHub Pages, Cloudflare
+Pages, Netlify, Vercel, etc. Then set the backend URL:
+
+- Edit `miniapp/app.js` → `API` to your Worker URL, **or**
+- Open the app with `?api=https://your-worker.workers.dev`.
+
+Point the Mini App URL in @BotFather at your frontend URL.
+
+### 4. Add the bot to the group
+
+Add the bot as an **administrator** of your group, and share the Mini App
+(`https://t.me/<bot>?startapp` or a direct link). Only group members get in;
+everyone else sees a "Join the group" button (edit the invite link in `app.js`).
+
+---
+
+## Optional flight-data enrichment
+
+The board stores flight number + date as entered. To auto-fetch origin/destination/
+status, extend `backend/worker.js` in `createFlight` to call a flight API (e.g.
+[Aviationstack](https://aviationstack.com)) before saving — the fields `origin`,
+`destination`, and `status` are already in the schema.
+
+---
+
+## Security model
+
+- `initData` is validated server-side with HMAC-SHA256 (bot token as key), with a
+  freshness check on `auth_date`.
+- Group membership is checked via `getChatMember` (`creator`/`administrator`/
+  `member` allowed; `restricted` only if `is_member`), cached 5 minutes in KV.
+- Only a flight's creator can delete it.
+- The bot token and group id are Worker secrets — never in client code.
 
 ---
 
 ## Project layout
 
 ```
-samferd/
-├── docs/                  # specification (spec, data-model, api, architecture)
-├── samferd/
-│   ├── settings.py        # Django settings (env-driven)
-│   ├── celery.py          # Celery app
-│   └── accounts/ events/ carpool/ fares/ notifications/   # feature apps
-├── templates/             # server-rendered templates (HTMX)
-├── static/                # static assets
-├── manage.py
-├── compose.yaml           # Docker Compose topology
-├── Dockerfile
-├── entrypoint.sh
-├── requirements.txt
-└── .env.example
+backend/
+├─ worker.js       # Cloudflare Worker: initData validation, membership gate, board API
+└─ wrangler.toml   # Worker + KV config (secrets set via `wrangler secret put`)
+miniapp/
+├─ index.html      # Mini App shell
+├─ app.js          # frontend logic (Telegram WebApp SDK + API calls)
+└─ app.css         # mobile-first, Telegram-themed styling
 ```
-
-## Configuration reference
-
-All configuration is via environment variables (see `.env.example`). Key ones:
-
-| Variable | Default | Purpose |
-|---|---|---|
-| `FARE_PROVIDER` | `google_flights` | Fare provider (abstraction allows adding more) |
-| `FARE_PROVIDER_LANGUAGE` | `en` | Language hint for Google Flights display names |
-| `TIE_TOLERANCE_PERCENT` | `5` | Better-route comparison tolerance |
-| `DEFAULT_LANGUAGE` | `fr` | Instance default UI language |
-| `ENABLE_PASSWORD_AUTH` | `true` | Toggle email/password login |
-
-## License
-
-Open source (license to be chosen — AGPL-3.0 suggested).
 
 ---
 
-## Original brief
+## License
 
-The original project brief is preserved below for reference.
-
-> I want to create a webapp that will let a group of people coordinate travels.
-> The use case is that I and other people are travelling from around the same place
-> and would like to minimize the number of cars and to pay the lowest overall travel
-> cost per person. The philosophy of the app is that we only want to coordinate the
-> travel and help find the lowest air travel fare and parking cost for the car at the
-> airport. The app is only a helper tool and is not designed to make money in itself.
-> ... (see docs/spec.md for the full specification)
+Open source (AGPL-3.0 suggested).

@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>Samferd</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <link rel="stylesheet" href="app.css" />
+</head>
+<body>
+  <header class="topbar">
+    <h1>✈️ Samferd</h1>
+  </header>
+
+  <!-- Shown before membership is confirmed -->
+  <div id="loading" class="panel">Loading…</div>
+
+  <!-- Shown to non-members -->
+  <div id="denied" class="panel hidden">
+    <h2>🔒 Members only</h2>
+    <p>Samferd is invite-only. You must be a member of our Telegram group to use it.</p>
+    <p class="empty">Ask a group admin to invite you.</p>
+  </div>
+
+  <!-- Main app -->
+  <main id="app" class="hidden">
+    <section class="panel" id="board"></section>
+
+    <section class="panel form">
+      <h2>Add a flight</h2>
+      <label>Flight number
+        <input id="flight-number" type="text" placeholder="AF1234" autocomplete="off" />
+      </label>
+      <label>Departure date
+        <input id="departure-date" type="date" />
+      </label>
+      <button id="create-flight" class="btn primary">Create flight</button>
+    </section>
+
+    <section class="panel form">
+      <h2>Your note</h2>
+      <input id="note" type="text" placeholder="e.g. window seat please" autocomplete="off" />
+      <button id="save-note" class="btn">Save note</button>
+    </section>
+  </main>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>

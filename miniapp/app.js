@@ -91,6 +91,20 @@ function escapeHtml(s) {
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
+// Format a YYYY-MM-DD date into a human-friendly locale string, e.g.
+// "Mon 15 Sep 2026".
+function formatDate(iso) {
+  if (!iso) return '';
+  const [y, m, d] = iso.split('-').map(Number);
+  if (!y || !m || !d) return escapeHtml(iso);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  try {
+    return dt.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+  } catch {
+    return escapeHtml(iso);
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Rendering
 // ---------------------------------------------------------------------------
@@ -104,9 +118,15 @@ function renderBoard(flights) {
 
   board.innerHTML = flights.map((f) => {
     const route = f.origin && f.destination
-      ? `${escapeHtml(f.origin)} → ${escapeHtml(f.destination)}`
-      : 'route n/a';
+      ? `<span class="route-origin">${escapeHtml(f.origin)}</span> → <span class="route-dest">${escapeHtml(f.destination)}</span>`
+      : '<span class="route-na">route n/a</span>';
     const status = f.status ? ` · ${escapeHtml(f.status)}` : '';
+
+    // Departure detail line: date + departure time (+ terminal/gate when known).
+    const dateLine = formatDate(f.departureDate);
+    const timeParts = [f.departureTime, f.terminal ? `T${escapeHtml(f.terminal)}` : '', f.gate ? `G${escapeHtml(f.gate)}` : ''].filter(Boolean).join(' ');
+    const timeLine = timeParts ? ` · ${escapeHtml(timeParts)}` : '';
+
     const onFlight = f.passengers.some((p) => p.id === me);
     const isCreator = f.createdBy === me;
 
@@ -130,7 +150,7 @@ function renderBoard(flights) {
       <div class="flight">
         <div class="flight-head">
           <span class="flight-number">${escapeHtml(f.flightNumber)}</span>
-          <span class="flight-date">${escapeHtml(f.departureDate)}</span>
+          <span class="flight-date">${escapeHtml(dateLine)}${timeLine}</span>
         </div>
         <div class="flight-route">${route}${status}</div>
         <ul class="passengers">${people}</ul>

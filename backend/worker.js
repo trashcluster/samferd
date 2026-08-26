@@ -19,6 +19,8 @@ const encoder = new TextEncoder();
 
 const GROUP_ID = () => Number(env.GROUP_ID);
 const BOT_TOKEN = () => env.BOT_TOKEN;
+const FLIGHT_API_PROVIDER = () => env.FLIGHT_API_PROVIDER || '';
+const FLIGHT_API_KEY = () => env.FLIGHT_API_KEY || '';
 
 // CORS: the Mini App is served from Telegram's webview; allow any origin.
 const CORS = {
@@ -180,6 +182,68 @@ function userInfo(u) {
 }
 
 // ---------------------------------------------------------------------------
+// Flight-data enrichment (Aviationstack) — cached per flight number + date
+// ---------------------------------------------------------------------------
+//
+// To minimize API usage, we call Aviationstack ONLY the first time a given
+// (flight number, date) pair is seen and cache the result in KV. Later flights
+// with the same number AND date reuse the cache — but a different date is a
+// different flight (different times/route), so it gets its own API call.
+// A "not found" result is cached too (empty object) to avoid repeat calls.
+
+const ENRICH_PREFIX = 'enrich:';
+
+async function enrichFlight(flightNumber, departureDate) {
+  const provider = FLIGHT_API_PROVIDER();
+  if (!provider || provider === 'none' || !FLIGHT_API_KEY()) {
+    return null; // enrichment disabled
+  }
+
+  const cacheKey = ENRICH_PREFIX + flightNumber + ':' + departureDate;
+
+  // 1. Return cached data if we've already resolved this flight+date.
+  const cached = await env.SAMFERD.get(cacheKey);
+  if (cached !== null) {
+    return cached === '' ? null : JSON.parse(cached);
+  }
+
+  // 2. First time — call the provider.
+  let data = null;
+  if (provider === 'aviationstack') {
+    data = await fetchAviationstack(flightNumber, departureDate);
+  }
+
+  // 3. Cache whatever we got (including null → empty string).
+  await env.SAMFERD.put(cacheKey, data ? JSON.stringify(data) : '');
+  return data;
+}
+
+async function fetchAviationstack(flightNumber, departureDate) {
+  const url = 'https://api.aviationstack.com/v1/flights'
+    + `?access_key=${encodeURIComponent(FLIGHT_API_KEY())}`
+    + `&flight_iata=${encodeURIComponent(flightNumber)}`
+    + `&flight_date=${encodeURIComponent(departureDate)}`
+    + '&limit=1';
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const body = await res.json();
+    const f = body && body.data && body.data[0];
+    if (!f) return null;
+    return {
+      origin: f.departure?.airport || f.departure?.iata || null,
+      destination: f.arrival?.airport || f.arrival?.iata || null,
+      // Departure time in local airport time (e.g. "13:45"), and gate if present.
+      departureTime: f.departure?.scheduled?.slice(11, 16) || null,
+      terminal: f.departure?.terminal || null,
+      gate: f.departure?.gate || null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Request handler
 // ---------------------------------------------------------------------------
 
@@ -228,13 +292,21 @@ async function handle(request) {
     if (board.flights.some((f) => f.flightNumber === flightNumber && f.departureDate === departureDate)) {
       return json({ ok: false, error: 'duplicate', message: 'That flight already exists.' }, 409);
     }
+
+    // Auto-enrich origin/destination/departure time the first time this
+    // flight number + date is seen (cached; null when disabled or unknown).
+    const enrichment = await enrichFlight(flightNumber, departureDate);
+
     const flight = {
       id: board.nextId++,
       flightNumber,
       departureDate,
-      origin: body.origin || null,
-      destination: body.destination || null,
-      status: body.status || null,
+      origin: enrichment?.origin || null,
+      destination: enrichment?.destination || null,
+      departureTime: enrichment?.departureTime || null,
+      terminal: enrichment?.terminal || null,
+      gate: enrichment?.gate || null,
+      status: null,
       createdBy: user.id,
       passengers: [],
     };

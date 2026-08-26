@@ -64,6 +64,7 @@ body {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
+  gap: 10px;
 }
 
 .flight-number {
@@ -72,14 +73,27 @@ body {
 }
 
 .flight-date {
-  color: var(--tg-theme-hint-color, #888);
+  color: var(--tg-theme-text-color, #000);
   font-size: 14px;
+  font-weight: 600;
+  text-align: right;
+  white-space: nowrap;
 }
 
 .flight-route {
   color: var(--tg-theme-hint-color, #888);
-  font-size: 13px;
-  margin-top: 2px;
+  font-size: 14px;
+  margin-top: 4px;
+}
+
+.route-origin,
+.route-dest {
+  font-weight: 600;
+  color: var(--tg-theme-text-color, #000);
+}
+
+.route-na {
+  font-style: italic;
 }
 
 .passengers {

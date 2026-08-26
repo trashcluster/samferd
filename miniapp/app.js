@@ -60,6 +60,7 @@ const $ = (id) => document.getElementById(id);
 
 let me = null;
 let isAdmin = false;
+let allFlights = []; // full flight objects, kept for the admin panel
 
 // ---------------------------------------------------------------------------
 // API helpers
@@ -226,7 +227,9 @@ async function handleAction(act, id) {
 async function refresh() {
   try {
     const { flights, cars } = await call('GET', '/api/board');
+    allFlights = flights;
     renderBoard(flights, cars);
+    if (isAdmin) renderAdminList();
   } catch (e) {
     toast(e.message);
   }
@@ -263,10 +266,51 @@ async function createCar() {
   }
 }
 
+// --- Admin panel ------------------------------------------------------------
+
+// Render the tappable list of flights in the admin panel.
+function renderAdminList() {
+  const list = $('admin-flight-list');
+  if (!allFlights.length) {
+    list.innerHTML = '<div class="empty">No flights.</div>';
+    return;
+  }
+  list.innerHTML = allFlights.map((f) => {
+    const route = (f.origin && f.destination)
+      ? `${escapeHtml(f.origin)} → ${escapeHtml(f.destination)}`
+      : '<span class="route-na">no route</span>';
+    const time = f.departureTime ? ` · ${escapeHtml(f.departureTime)}` : '';
+    return `
+      <button class="admin-row" data-edit="${f.id}">
+        <span class="admin-row-main">${escapeHtml(f.flightNumber)} — ${escapeHtml(f.departureDate)}</span>
+        <span class="admin-row-sub">${route}${time}</span>
+      </button>`;
+  }).join('');
+
+  list.querySelectorAll('[data-edit]').forEach((btn) => {
+    btn.addEventListener('click', () => openAdminEditor(Number(btn.dataset.edit)));
+  });
+}
+
+// Populate the editor with a flight's current values and reveal it.
+function openAdminEditor(id) {
+  const f = allFlights.find((x) => x.id === id);
+  if (!f) return;
+  $('admin-flight-id').value = f.id;
+  $('admin-flight-number').value = f.flightNumber || '';
+  $('admin-departure-date').value = f.departureDate || '';
+  $('admin-origin').value = f.origin || '';
+  $('admin-destination').value = f.destination || '';
+  $('admin-departure-time').value = f.departureTime || '';
+  $('admin-editor').classList.remove('hidden');
+  // Scroll the editor into view on small screens.
+  $('admin-editor').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
 async function adminSaveFlight() {
   const id = Number($('admin-flight-id').value);
   if (!id) {
-    toast('Enter a flight id.');
+    toast('Pick a flight first.');
     return;
   }
   const body = { id };
@@ -283,6 +327,7 @@ async function adminSaveFlight() {
   try {
     await call('PATCH', '/api/flights', body);
     toast('Flight updated.');
+    $('admin-editor').classList.add('hidden');
     await refresh();
     if (tg) tg.HapticFeedback.notificationOccurred('success');
   } catch (e) {

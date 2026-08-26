@@ -192,10 +192,10 @@ function userInfo(u) {
 }
 
 // ---------------------------------------------------------------------------
-// Flight-data enrichment (Aviationstack) — cached per flight number + date
+// Flight-data enrichment (AirLabs) — cached per flight number + date
 // ---------------------------------------------------------------------------
 //
-// To minimize API usage, we call Aviationstack ONLY the first time a given
+// To minimize API usage, we call AirLabs ONLY the first time a given
 // (flight number, date) pair is seen and cache the result in KV. Later flights
 // with the same number AND date reuse the cache — but a different date is a
 // different flight (different times/route), so it gets its own API call.
@@ -219,8 +219,8 @@ async function enrichFlight(flightNumber, departureDate) {
 
   // 2. First time — call the provider.
   let data = null;
-  if (provider === 'aviationstack') {
-    data = await fetchAviationstack(flightNumber, departureDate);
+  if (provider === 'airlabs') {
+    data = await fetchAirLabs(flightNumber, departureDate);
   }
 
   // 3. Cache whatever we got (including null → empty string).
@@ -228,12 +228,13 @@ async function enrichFlight(flightNumber, departureDate) {
   return data;
 }
 
-async function fetchAviationstack(flightNumber, departureDate) {
-  const url = 'https://api.aviationstack.com/v1/flights'
-    + `?access_key=${encodeURIComponent(FLIGHT_API_KEY())}`
+async function fetchAirLabs(flightNumber, departureDate) {
+  // AirLabs flight lookup by flight IATA code. The `flight_date` parameter
+  // filters to a specific operating day (YYYY-MM-DD).
+  const url = 'https://airlabs.co/api/v9/flight'
+    + `?api_key=${encodeURIComponent(FLIGHT_API_KEY())}`
     + `&flight_iata=${encodeURIComponent(flightNumber)}`
-    + `&flight_date=${encodeURIComponent(departureDate)}`
-    + '&limit=1';
+    + `&flight_date=${encodeURIComponent(departureDate)}`;
   try {
     const res = await fetch(url);
     const text = await res.text();
@@ -242,19 +243,30 @@ async function fetchAviationstack(flightNumber, departureDate) {
     if (!res.ok) return null;
     let body;
     try { body = JSON.parse(text); } catch { return null; }
-    const f = body && body.data && body.data[0];
+    const f = body && body.response;
     if (!f) return null;
+
+    // AirLabs returns nested objects: departure { airport, iata, time_utc, ... }
+    const dep = f.dep || f.departure || {};
+    const arr = f.arr || f.arrival || {};
     return {
-      origin: f.departure?.airport || f.departure?.iata || null,
-      destination: f.arrival?.airport || f.arrival?.iata || null,
-      // Departure time in local airport time (e.g. "13:45"), and gate if present.
-      departureTime: f.departure?.scheduled?.slice(11, 16) || null,
-      terminal: f.departure?.terminal || null,
-      gate: f.departure?.gate || null,
+      origin: dep.iata || dep.airport || null,
+      destination: arr.iata || arr.airport || null,
+      // AirLabs gives departure time in UTC ("time_utc": "2026-10-15T11:45:00Z").
+      departureTime: toLocalHHMM(dep.time_utc),
+      terminal: dep.terminal || null,
+      gate: dep.gate || null,
     };
   } catch {
     return null;
   }
+}
+
+/** Convert an ISO UTC timestamp to a "HH:MM" string (keeps UTC; display-only). */
+function toLocalHHMM(iso) {
+  if (!iso) return null;
+  const m = String(iso).match(/(\d{2}):(\d{2})/);
+  return m ? `${m[1]}:${m[2]}` : null;
 }
 
 // ---------------------------------------------------------------------------

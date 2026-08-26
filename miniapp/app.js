@@ -112,39 +112,24 @@ function formatDate(iso) {
 // ---------------------------------------------------------------------------
 
 function renderBoard(flights, cars) {
-  const board = $('board');
-  const parts = [];
-
   const carsOut = (cars || []).filter((c) => c.direction !== 'return');
   const carsReturn = (cars || []).filter((c) => c.direction === 'return');
 
-  // --- Cars to the departure airport (above flights) ------------------------
-  parts.push('<h2 class="section-title">🚗 Cars to the airport</h2>');
-  if (carsOut.length) {
-    parts.push(carsOut.map(renderCar).join(''));
-  } else {
-    parts.push('<div class="empty">No cars to the airport yet.</div>');
-  }
+  // Three separate white canvases, each with its own title and content.
+  $('board-cars-out').innerHTML =
+    '<h2 class="section-title">🚗 Cars to the airport</h2>' +
+    (carsOut.length ? carsOut.map(renderCar).join('') : '<div class="empty">No cars to the airport yet.</div>');
 
-  // --- Flights (passengers are the main focus) ------------------------------
-  parts.push('<h2 class="section-title mt">🛫 Flights</h2>');
-  if (flights.length) {
-    parts.push(flights.map(renderFlight).join(''));
-  } else {
-    parts.push('<div class="empty">No upcoming flights yet.</div>');
-  }
+  $('board-flights').innerHTML =
+    '<h2 class="section-title">🛫 Flights</h2>' +
+    (flights.length ? flights.map(renderFlight).join('') : '<div class="empty">No upcoming flights yet.</div>');
 
-  // --- Cars from the arrival airport (below flights) ------------------------
-  parts.push('<h2 class="section-title mt">🚗 Cars from the arrival airport</h2>');
-  if (carsReturn.length) {
-    parts.push(carsReturn.map(renderCar).join(''));
-  } else {
-    parts.push('<div class="empty">No cars from the airport yet.</div>');
-  }
+  $('board-cars-return').innerHTML =
+    '<h2 class="section-title">🚗 Cars from the arrival airport</h2>' +
+    (carsReturn.length ? carsReturn.map(renderCar).join('') : '<div class="empty">No cars from the airport yet.</div>');
 
-  board.innerHTML = parts.join('');
-
-  board.querySelectorAll('[data-act]').forEach((btn) => {
+  // Bind actions across all three canvases.
+  document.querySelectorAll('[data-act]').forEach((btn) => {
     btn.addEventListener('click', () => handleAction(btn.dataset.act, Number(btn.dataset.id)));
   });
 }

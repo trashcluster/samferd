@@ -166,7 +166,12 @@ async function authUser(request) {
 
 async function loadBoard() {
   const raw = await env.SAMFERD.get('board');
-  return raw ? JSON.parse(raw) : { nextId: 1, flights: [] };
+  const board = raw ? JSON.parse(raw) : {};
+  return {
+    nextId: board.nextId || 1,
+    flights: board.flights || [],
+    cars: board.cars || [],
+  };
 }
 
 async function saveBoard(board) {
@@ -275,7 +280,7 @@ async function handle(request) {
     const flights = board.flights
       .filter((f) => f.departureDate >= new Date().toISOString().slice(0, 10))
       .sort((a, b) => a.departureDate.localeCompare(b.departureDate) || a.id - b.id);
-    return json({ ok: true, flights, me: user.id });
+    return json({ ok: true, flights, cars: board.cars, me: user.id });
   }
 
   // ---- create flight -------------------------------------------------------
@@ -340,16 +345,63 @@ async function handle(request) {
   }
 
   if (path === '/api/note' && method === 'POST') {
+    return json({ ok: false, error: 'removed', message: 'Notes are no longer available.' }, 410);
+  }
+
+  // ---- cars ----------------------------------------------------------------
+  if (path === '/api/cars' && method === 'POST') {
     const body = await request.json().catch(() => ({}));
-    const note = String(body.note || '').slice(0, 200);
-    let changed = 0;
-    for (const f of board.flights) {
-      const p = f.passengers.find((x) => x.id === user.id);
-      if (p) { p.note = note; changed++; }
+    const freeSeats = Math.max(1, Math.min(20, Number(body.freeSeats) || 0));
+    const car = {
+      id: board.nextId++,
+      driver: userInfo(user),
+      freeSeats,
+      note: String(body.note || '').slice(0, 200) || null,
+      riders: [],
+    };
+    board.cars.push(car);
+    await saveBoard(board);
+    return json({ ok: true, car });
+  }
+
+  const cm = path.match(/^\/api\/cars\/(\d+)\/(join|leave)$/);
+  if (cm && method === 'POST') {
+    const id = Number(cm[1]);
+    const action = cm[2];
+    const car = board.cars.find((c) => c.id === id);
+    if (!car) return json({ ok: false, error: 'not_found', message: 'Car not found.' }, 404);
+
+    if (action === 'join') {
+      if (car.driver.id === user.id) {
+        return json({ ok: false, error: 'driver', message: 'You are the driver of this car.' }, 409);
+      }
+      if (car.riders.some((r) => r.id === user.id)) {
+        return json({ ok: false, error: 'already', message: 'You are already in this car.' }, 409);
+      }
+      if (car.riders.length >= car.freeSeats) {
+        return json({ ok: false, error: 'full', message: 'This car is full.' }, 409);
+      }
+      car.riders.push(userInfo(user));
+    } else {
+      const before = car.riders.length;
+      car.riders = car.riders.filter((r) => r.id !== user.id);
+      if (car.riders.length === before) {
+        return json({ ok: false, error: 'not_found', message: 'You are not in this car.' }, 404);
+      }
     }
-    if (changed === 0) {
-      return json({ ok: false, error: 'none', message: 'Join a flight first.' }, 404);
+    await saveBoard(board);
+    return json({ ok: true, car });
+  }
+
+  if (path === '/api/cars' && method === 'DELETE') {
+    const body = await request.json().catch(() => ({}));
+    const id = Number(body.id);
+    const car = board.cars.find((c) => c.id === id);
+    if (!car) return json({ ok: false, error: 'not_found', message: 'Car not found.' }, 404);
+    if (car.driver.id !== user.id) {
+      return json({ ok: false, error: 'forbidden', message: 'Only the driver can delete this car.' }, 403);
     }
+    board.cars = board.cars.filter((c) => c.id !== id);
     await saveBoard(board);
     return json({ ok: true });
   }

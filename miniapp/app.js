@@ -109,54 +109,94 @@ function formatDate(iso) {
 // Rendering
 // ---------------------------------------------------------------------------
 
-function renderBoard(flights) {
+function renderBoard(flights, cars) {
   const board = $('board');
-  if (!flights.length) {
-    board.innerHTML = '<div class="empty">No upcoming flights yet.<br/>Add one below. ✈️</div>';
-    return;
+  const parts = [];
+
+  // --- Flights (passengers are the main focus) ------------------------------
+  if (flights.length) {
+    parts.push('<h2 class="section-title">🛫 Flights</h2>');
+    parts.push(flights.map((f) => {
+      const route = f.origin && f.destination
+        ? `<span class="route-origin">${escapeHtml(f.origin)}</span> → <span class="route-dest">${escapeHtml(f.destination)}</span>`
+        : '<span class="route-na">route n/a</span>';
+      const status = f.status ? ` · ${escapeHtml(f.status)}` : '';
+
+      const dateLine = formatDate(f.departureDate);
+      const timeParts = [f.departureTime, f.terminal ? `T${escapeHtml(f.terminal)}` : '', f.gate ? `G${escapeHtml(f.gate)}` : ''].filter(Boolean).join(' ');
+      const timeLine = timeParts ? ` · ${escapeHtml(timeParts)}` : '';
+
+      const onFlight = f.passengers.some((p) => p.id === me);
+      const isCreator = f.createdBy === me;
+
+      const people = f.passengers.length
+        ? f.passengers.map((p) => {
+            return `<li><span>${escapeHtml(p.name)}</span></li>`;
+          }).join('')
+        : '<li class="empty">(no passengers yet)</li>';
+
+      const actions = [
+        onFlight
+          ? `<button class="btn small" data-act="leave-flight" data-id="${f.id}">Leave</button>`
+          : `<button class="btn small primary" data-act="join-flight" data-id="${f.id}">Join</button>`,
+        isCreator
+          ? `<button class="btn small danger" data-act="del-flight" data-id="${f.id}">Delete</button>`
+          : '',
+      ].join('');
+
+      return `
+        <div class="flight">
+          <div class="flight-head">
+            <span class="flight-number">${escapeHtml(f.flightNumber)}</span>
+            <span class="flight-date">${escapeHtml(dateLine)}${timeLine}</span>
+          </div>
+          <div class="flight-route">${route}${status}</div>
+          <ul class="passengers">${people}</ul>
+          <div class="flight-actions">${actions}</div>
+        </div>`;
+    }).join(''));
+  } else {
+    parts.push('<div class="empty">No upcoming flights yet.</div>');
   }
 
-  board.innerHTML = flights.map((f) => {
-    const route = f.origin && f.destination
-      ? `<span class="route-origin">${escapeHtml(f.origin)}</span> → <span class="route-dest">${escapeHtml(f.destination)}</span>`
-      : '<span class="route-na">route n/a</span>';
-    const status = f.status ? ` · ${escapeHtml(f.status)}` : '';
+  // --- Cars -----------------------------------------------------------------
+  if (cars && cars.length) {
+    parts.push('<h2 class="section-title mt">🚗 Cars</h2>');
+    parts.push(cars.map((c) => {
+      const remaining = c.freeSeats - c.riders.length;
+      const isDriver = c.driver.id === me;
+      const isRider = c.riders.some((r) => r.id === me);
 
-    // Departure detail line: date + departure time (+ terminal/gate when known).
-    const dateLine = formatDate(f.departureDate);
-    const timeParts = [f.departureTime, f.terminal ? `T${escapeHtml(f.terminal)}` : '', f.gate ? `G${escapeHtml(f.gate)}` : ''].filter(Boolean).join(' ');
-    const timeLine = timeParts ? ` · ${escapeHtml(timeParts)}` : '';
+      const riders = c.riders.length
+        ? c.riders.map((r) => `<li><span>${escapeHtml(r.name)}</span></li>`).join('')
+        : '<li class="empty">(no riders yet)</li>';
 
-    const onFlight = f.passengers.some((p) => p.id === me);
-    const isCreator = f.createdBy === me;
+      const actions = [
+        isDriver
+          ? `<button class="btn small danger" data-act="del-car" data-id="${c.id}">Delete</button>`
+          : isRider
+            ? `<button class="btn small" data-act="leave-car" data-id="${c.id}">Leave</button>`
+            : remaining > 0
+              ? `<button class="btn small primary" data-act="join-car" data-id="${c.id}">Join</button>`
+              : '<span class="full-badge">Full</span>',
+      ].join('');
 
-    const people = f.passengers.length
-      ? f.passengers.map((p) => {
-          const note = p.note ? `<span class="passenger-note">${escapeHtml(p.note)}</span>` : '';
-          return `<li><span>${escapeHtml(p.name)}</span>${note}</li>`;
-        }).join('')
-      : '<li class="empty">(no passengers yet)</li>';
+      return `
+        <div class="flight">
+          <div class="flight-head">
+            <span class="flight-number">🚗 ${escapeHtml(c.driver.name)}</span>
+            <span class="flight-date">${remaining} free seat${remaining === 1 ? '' : 's'}</span>
+          </div>
+          ${c.note ? `<div class="flight-route">${escapeHtml(c.note)}</div>` : ''}
+          <ul class="passengers">${riders}</ul>
+          <div class="flight-actions">${actions}</div>
+        </div>`;
+    }).join(''));
+  } else {
+    parts.push('<h2 class="section-title mt">🚗 Cars</h2><div class="empty">No cars offered yet.</div>');
+  }
 
-    const actions = [
-      onFlight
-        ? `<button class="btn small" data-act="leave" data-id="${f.id}">Leave</button>`
-        : `<button class="btn small primary" data-act="join" data-id="${f.id}">Join</button>`,
-      isCreator
-        ? `<button class="btn small danger" data-act="del" data-id="${f.id}">Delete</button>`
-        : '',
-    ].join('');
-
-    return `
-      <div class="flight">
-        <div class="flight-head">
-          <span class="flight-number">${escapeHtml(f.flightNumber)}</span>
-          <span class="flight-date">${escapeHtml(dateLine)}${timeLine}</span>
-        </div>
-        <div class="flight-route">${route}${status}</div>
-        <ul class="passengers">${people}</ul>
-        <div class="flight-actions">${actions}</div>
-      </div>`;
-  }).join('');
+  board.innerHTML = parts.join('');
 
   board.querySelectorAll('[data-act]').forEach((btn) => {
     btn.addEventListener('click', () => handleAction(btn.dataset.act, Number(btn.dataset.id)));
@@ -169,9 +209,12 @@ function renderBoard(flights) {
 
 async function handleAction(act, id) {
   try {
-    if (act === 'join') await call('POST', `/api/flights/${id}/join`);
-    if (act === 'leave') await call('POST', `/api/flights/${id}/leave`);
-    if (act === 'del') await call('DELETE', '/api/flights', { id });
+    if (act === 'join-flight') await call('POST', `/api/flights/${id}/join`);
+    if (act === 'leave-flight') await call('POST', `/api/flights/${id}/leave`);
+    if (act === 'del-flight') await call('DELETE', '/api/flights', { id });
+    if (act === 'join-car') await call('POST', `/api/cars/${id}/join`);
+    if (act === 'leave-car') await call('POST', `/api/cars/${id}/leave`);
+    if (act === 'del-car') await call('DELETE', '/api/cars', { id });
     await refresh();
     if (tg) tg.HapticFeedback.notificationOccurred('success');
   } catch (e) {
@@ -181,8 +224,8 @@ async function handleAction(act, id) {
 
 async function refresh() {
   try {
-    const { flights } = await call('GET', '/api/board');
-    renderBoard(flights);
+    const { flights, cars } = await call('GET', '/api/board');
+    renderBoard(flights, cars);
   } catch (e) {
     toast(e.message);
   }
@@ -206,11 +249,14 @@ async function createFlight() {
   }
 }
 
-async function saveNote() {
+async function createCar() {
+  const freeSeats = Number($('car-seats').value) || 3;
+  const note = $('car-note').value.trim();
   try {
-    await call('POST', '/api/note', { note: $('note').value });
+    await call('POST', '/api/cars', { freeSeats, note });
+    $('car-note').value = '';
     await refresh();
-    toast('Note saved.');
+    if (tg) tg.HapticFeedback.notificationOccurred('success');
   } catch (e) {
     toast(e.message);
   }
@@ -239,9 +285,17 @@ async function init() {
     $('denied').classList.remove('hidden');
   }
 
+  // Toggle the add form.
+  const toggle = $('toggle-add');
+  const addForm = $('add-form');
+  toggle.addEventListener('click', () => {
+    const hidden = addForm.classList.toggle('hidden');
+    toggle.textContent = hidden ? '＋ Add flight / car' : '－ Close';
+  });
+
   // Invite-only: no public join link. Non-members are told to contact an admin.
   $('create-flight').addEventListener('click', createFlight);
-  $('save-note').addEventListener('click', saveNote);
+  $('create-car').addEventListener('click', createCar);
 }
 
 init();

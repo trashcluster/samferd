@@ -54,6 +54,20 @@ body {
 
 .hidden { display: none !important; }
 
+.mt { margin-top: 16px; }
+
+.section-title {
+  margin: 0 0 10px;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.full-badge {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--tg-theme-destructive-text-color, #e53935);
+}
+
 .flight {
   padding: 12px 0;
   border-bottom: 1px solid var(--tg-theme-section-separator-color, #eee);

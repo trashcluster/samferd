@@ -26,6 +26,19 @@ function applySafeArea() {
   set('--safe-bottom', csa.bottom ?? sa.bottom);
   set('--safe-left', csa.left ?? sa.left);
   set('--safe-right', csa.right ?? sa.right);
+
+  // Bottom spacer: the gap between the visible viewport height and the full
+  // window height is exactly the area covered by Android's navigation bar /
+  // Telegram's bottom controls. Add it as scrollable blank space so the last
+  // buttons can always be scrolled clear of the overlays.
+  const spacer = document.getElementById('bottom-spacer');
+  if (spacer) {
+    const full = window.innerHeight;
+    const visible = Number(tg.viewportStableHeight) || Number(tg.viewportHeight) || full;
+    const covered = Math.max(0, full - visible);
+    // Covered overlay height + comfortable breathing room.
+    spacer.style.height = `${Math.round(covered + 48)}px`;
+  }
 }
 
 if (tg) {

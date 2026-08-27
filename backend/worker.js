@@ -21,6 +21,7 @@ const GROUP_ID = () => env.GROUP_ID; // comma-separated whitelist of chat ids
 const BOT_TOKEN = () => env.BOT_TOKEN;
 const FLIGHT_API_PROVIDER = () => env.FLIGHT_API_PROVIDER || '';
 const FLIGHT_API_KEY = () => env.FLIGHT_API_KEY || '';
+const RAPIDAPI_KEY = () => env.RAPIDAPI_KEY || '';
 
 // Telegram user ids with full admin (override) rights. Add more ids as needed.
 const ADMIN_IDS = new Set([
@@ -257,13 +258,12 @@ async function enrichFlight(flightNumber, departureDate) {
   return data;
 }
 
-// AeroDataBox via RapidAPI. The API key is stored in KV under `RAPIDAPI_KEY`
-// (set with `wrangler kv key put RAPIDAPI_KEY --binding=SAMFERD --remote`),
-// so it can be rotated without redeploying.
+// AeroDataBox via RapidAPI. The API key is a Worker secret (RAPIDAPI_KEY),
+// set with `wrangler secret put RAPIDAPI_KEY`.
 async function fetchAeroDataBox(flightNumber, departureDate) {
-  const apiKey = await env.SAMFERD.get('RAPIDAPI_KEY');
+  const apiKey = RAPIDAPI_KEY();
   if (!apiKey) {
-    console.log('[enrich] no RAPIDAPI_KEY in KV — AeroDataBox disabled');
+    console.log('[enrich] no RAPIDAPI_KEY secret — AeroDataBox disabled');
     return null;
   }
 

@@ -19,9 +19,10 @@ html, body {
 body {
   margin: 0;
   padding-top: var(--safe-top);
-  /* Extra bottom room so content clears Android's navigation bar / Telegram's
-     bottom buttons when scrolled to the end. */
-  padding-bottom: calc(72px + var(--safe-bottom));
+  /* Large blank spacer at the very end of the page so the last buttons
+     (Add flight/car, Admin) clear Android's navigation bar and Telegram's
+     bottom controls when scrolled fully down. */
+  padding-bottom: calc(160px + var(--safe-bottom));
   padding-left: calc(12px + var(--safe-left));
   padding-right: calc(12px + var(--safe-right));
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;

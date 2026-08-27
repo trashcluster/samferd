@@ -132,12 +132,17 @@ let allCars = [];
 function renderBoard(flights, cars) {
   allCars = cars || [];
 
-  // Gather all travel days: flight departure dates + car dates.
+  const today = new Date().toISOString().slice(0, 10);
+
+  // Gather all travel days: flight departure dates + car dates. Days in the
+  // past are dropped here (the backend also prunes them) so an event
+  // disappears once its scheduled date has passed.
   const days = new Set();
-  (flights || []).forEach((f) => days.add(f.departureDate));
-  (cars || []).forEach((c) => { if (c.date) days.add(c.date); });
-  // Sort ascending; we'll show most-recent first (latest on the left/none default).
-  const sortedDays = [...days].sort(); // ascending
+  (flights || []).forEach((f) => { if (f.departureDate >= today) days.add(f.departureDate); });
+  (cars || []).forEach((c) => { if (c.date && c.date >= today) days.add(c.date); });
+
+  // Sort ascending: soonest upcoming day first, farthest ahead last.
+  const sortedDays = [...days].sort();
 
   // If no days, nothing to show.
   if (!sortedDays.length) {
@@ -146,10 +151,9 @@ function renderBoard(flights, cars) {
     return;
   }
 
-  // Most recent day is the home/default. "Most recent" = max date string.
-  const homeDay = sortedDays[sortedDays.length - 1];
+  // The soonest upcoming day is the home/default.
   if (selectedDay === null || !days.has(selectedDay)) {
-    selectedDay = homeDay;
+    selectedDay = sortedDays[0];
   }
 
   renderDayTabs(sortedDays);
@@ -157,9 +161,8 @@ function renderBoard(flights, cars) {
 }
 
 function renderDayTabs(sortedDays) {
-  // Show tabs left→right = most recent first (so current is home on the left).
-  const ordered = [...sortedDays].sort().reverse();
-  $('day-tabs').innerHTML = ordered.map((d) => {
+  // Left→right = soonest upcoming first, farthest ahead last.
+  $('day-tabs').innerHTML = sortedDays.map((d) => {
     const label = tabLabel(d);
     const active = d === selectedDay ? ' active' : '';
     return `<button class="day-tab${active}" data-day="${escapeHtml(d)}">${escapeHtml(label)}</button>`;

@@ -234,8 +234,10 @@ const ENRICH_PREFIX = 'enrich:';
 async function enrichFlight(flightNumber, departureDate) {
   const provider = FLIGHT_API_PROVIDER();
   if (!provider || provider === 'none') {
+    console.log('[enrich] disabled — FLIGHT_API_PROVIDER is', provider || '(empty)');
     return null; // enrichment disabled
   }
+  console.log('[enrich] provider:', provider, 'flight:', flightNumber, departureDate);
 
   const cacheKey = ENRICH_PREFIX + flightNumber + ':' + departureDate;
 
@@ -253,8 +255,16 @@ async function enrichFlight(flightNumber, departureDate) {
     data = await fetchAirLabs(flightNumber, departureDate);
   }
 
-  // 3. Cache whatever we got (including null → empty string).
-  await env.SAMFERD.put(cacheKey, data ? JSON.stringify(data) : '');
+  // 3. Cache the result. Successful data is kept permanently (a flight's
+  // schedule for a given date doesn't change meaningfully). An EMPTY result is
+  // cached only briefly: providers have a limited schedule horizon, so a
+  // far-future flight may have no data today but will within a few weeks —
+  // the short TTL makes it retry automatically as the date approaches.
+  if (data) {
+    await env.SAMFERD.put(cacheKey, JSON.stringify(data));
+  } else {
+    await env.SAMFERD.put(cacheKey, '', { expirationTtl: 6 * 3600 }); // retry in 6h
+  }
   return data;
 }
 

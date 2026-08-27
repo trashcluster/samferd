@@ -161,7 +161,8 @@ async function authUser(request) {
     console.log('[auth] authUser failed at membership stage for', user.id);
     return null;
   }
-  console.log('[auth] authUser OK for', user.id);
+  // Cache the user's display info so drivers/admins can add them as car riders.
+  await env.SAMFERD.put(`user:${user.id}`, JSON.stringify(userInfo(user)));
   return user;
 }
 
@@ -319,7 +320,19 @@ async function handle(request) {
     const flights = board.flights
       .filter((f) => f.departureDate >= new Date().toISOString().slice(0, 10))
       .sort((a, b) => a.departureDate.localeCompare(b.departureDate) || a.id - b.id);
-    return json({ ok: true, flights, cars: board.cars, me: user.id, isAdmin: ADMIN_IDS.has(user.id) });
+
+    // Known users (for the driver's passenger picker). Only exposed to
+    // drivers/admins; it's display info only (name/username).
+    let known = [];
+    if (ADMIN_IDS.has(user.id) || (board.cars || []).some((c) => c.driver.id === user.id)) {
+      const keys = await env.SAMFERD.list({ prefix: 'user:' });
+      for (const k of keys.keys) {
+        try { known.push(JSON.parse(await env.SAMFERD.get(k.name))); } catch {}
+      }
+      known.sort((a, b) => String(a.name).localeCompare(String(b.name)));
+    }
+
+    return json({ ok: true, flights, cars: board.cars, me: user.id, isAdmin: ADMIN_IDS.has(user.id), known });
   }
 
   // ---- create flight -------------------------------------------------------
@@ -418,31 +431,39 @@ async function handle(request) {
     return json({ ok: true, car });
   }
 
-  const cm = path.match(/^\/api\/cars\/(\d+)\/(join|leave)$/);
+  // Driver/admin manages a car's passenger list. Users cannot self-register:
+  // seats are arranged out-of-band with the driver, who records them here.
+  const cm = path.match(/^\/api\/cars\/(\d+)\/riders$/);
   if (cm && method === 'POST') {
     const id = Number(cm[1]);
-    const action = cm[2];
     const car = board.cars.find((c) => c.id === id);
     if (!car) return json({ ok: false, error: 'not_found', message: 'Car not found.' }, 404);
-
-    if (action === 'join') {
-      if (car.driver.id === user.id) {
-        return json({ ok: false, error: 'driver', message: 'You are the driver of this car.' }, 409);
-      }
-      if (car.riders.some((r) => r.id === user.id)) {
-        return json({ ok: false, error: 'already', message: 'You are already in this car.' }, 409);
-      }
-      if (car.riders.length >= car.freeSeats) {
-        return json({ ok: false, error: 'full', message: 'This car is full.' }, 409);
-      }
-      car.riders.push(userInfo(user));
-    } else {
-      const before = car.riders.length;
-      car.riders = car.riders.filter((r) => r.id !== user.id);
-      if (car.riders.length === before) {
-        return json({ ok: false, error: 'not_found', message: 'You are not in this car.' }, 404);
-      }
+    if (car.driver.id !== user.id && !ADMIN_IDS.has(user.id)) {
+      return json({ ok: false, error: 'forbidden', message: 'Only the driver can manage passengers.' }, 403);
     }
+
+    const body = await request.json().catch(() => ({}));
+    const riders = Array.isArray(body.riders) ? body.riders : [];
+    if (riders.length > car.freeSeats) {
+      return json({ ok: false, error: 'full', message: `This car has only ${car.freeSeats} seat(s).` }, 400);
+    }
+    // Riders must be known users (seen in the app) and not the driver.
+    const clean = [];
+    for (const r of riders) {
+      const rid = Number(r && r.id);
+      if (!Number.isFinite(rid)) continue;
+      if (rid === car.driver.id) continue;
+      const known = await env.SAMFERD.get(`user:${rid}`);
+      if (known === null) continue; // unknown user — skip
+      let info;
+      try { info = JSON.parse(known); } catch { continue; }
+      clean.push({
+        id: info.id || rid,
+        name: info.name || `#${rid}`,
+        username: info.username ?? null,
+      });
+    }
+    car.riders = clean;
     await saveBoard(board);
     return json({ ok: true, car });
   }

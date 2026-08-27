@@ -61,6 +61,7 @@ const $ = (id) => document.getElementById(id);
 let me = null;
 let isAdmin = false;
 let allFlights = []; // full flight objects, kept for the admin panel
+let knownUsers = []; // display info of users known to the app (for rider picker)
 
 // ---------------------------------------------------------------------------
 // API helpers
@@ -242,20 +243,19 @@ function renderFlight(f) {
 function renderCar(c) {
   const remaining = c.freeSeats - c.riders.length;
   const isDriver = c.driver.id === me;
-  const isRider = c.riders.some((r) => r.id === me);
 
+  // Riders are managed by the driver only — no self-registration.
   const riders = c.riders.length
     ? c.riders.map((r) => `<li><span>${escapeHtml(r.name)}</span></li>`).join('')
-    : '<li class="empty">(no riders yet)</li>';
+    : '<li class="empty">(no passengers yet)</li>';
 
   const actions = [
     isDriver
+      ? `<button class="btn small primary" data-act="edit-riders" data-id="${c.id}">Edit passengers</button>`
+      : '',
+    isDriver
       ? `<button class="btn small danger" data-act="del-car" data-id="${c.id}">Delete</button>`
-      : isRider
-        ? `<button class="btn small" data-act="leave-car" data-id="${c.id}">Leave</button>`
-        : remaining > 0
-          ? `<button class="btn small primary" data-act="join-car" data-id="${c.id}">Join</button>`
-          : '<span class="full-badge">Full</span>',
+      : '',
     isDriver
       ? `<button class="btn small" data-act="toggle-car-direction" data-id="${c.id}">⇄ Switch</button>`
       : '',
@@ -282,10 +282,58 @@ async function handleAction(act, id) {
     if (act === 'join-flight') await call('POST', `/api/flights/${id}/join`);
     if (act === 'leave-flight') await call('POST', `/api/flights/${id}/leave`);
     if (act === 'del-flight') await call('DELETE', '/api/flights', { id });
-    if (act === 'join-car') await call('POST', `/api/cars/${id}/join`);
-    if (act === 'leave-car') await call('POST', `/api/cars/${id}/leave`);
     if (act === 'del-car') await call('DELETE', '/api/cars', { id });
     if (act === 'toggle-car-direction') await call('POST', `/api/cars/${id}/direction`);
+    if (act === 'edit-riders') { openRiderEditor(id); return; }
+    await refresh();
+    if (tg) tg.HapticFeedback.notificationOccurred('success');
+  } catch (e) {
+    toast(e.message);
+  }
+}
+
+// --- Rider editor (driver/admin only) ---------------------------------------
+
+let riderCarId = null;
+let riderSelection = new Set();
+
+function openRiderEditor(carId) {
+  const car = allCars.find((c) => c.id === carId);
+  if (!car) return;
+  riderCarId = carId;
+  riderSelection = new Set(car.riders.map((r) => r.id));
+
+  // Candidate passengers: everyone known to the app except the driver.
+  const candidates = knownUsers.filter((u) => u.id !== car.driver.id);
+
+  $('rider-editor-title').textContent = `Passengers — ${car.driver.name}`;
+  $('rider-list').innerHTML = candidates.length
+    ? candidates.map((u) => `
+        <label class="rider-row">
+          <input type="checkbox" data-rider="${u.id}" ${riderSelection.has(u.id) ? 'checked' : ''} />
+          <span>${escapeHtml(u.name)}</span>
+        </label>`).join('')
+    : '<div class="empty">No other users have opened the app yet.</div>';
+
+  $('rider-editor').classList.remove('hidden');
+  $('rider-editor').scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  $('rider-list').querySelectorAll('[data-rider]').forEach((cb) => {
+    cb.addEventListener('change', () => {
+      const rid = Number(cb.dataset.rider);
+      if (cb.checked) riderSelection.add(rid); else riderSelection.delete(rid);
+    });
+  });
+}
+
+async function saveRiders() {
+  if (riderCarId === null) return;
+  const riders = [...riderSelection].map((id) => ({ id }));
+  try {
+    await call('POST', `/api/cars/${riderCarId}/riders`, { riders });
+    toast('Passengers saved.');
+    $('rider-editor').classList.add('hidden');
+    riderCarId = null;
     await refresh();
     if (tg) tg.HapticFeedback.notificationOccurred('success');
   } catch (e) {
@@ -295,8 +343,9 @@ async function handleAction(act, id) {
 
 async function refresh() {
   try {
-    const { flights, cars } = await call('GET', '/api/board');
+    const { flights, cars, known } = await call('GET', '/api/board');
     allFlights = flights;
+    knownUsers = known || [];
     renderBoard(flights, cars);
     if (isAdmin) renderAdminList();
   } catch (e) {
@@ -459,6 +508,7 @@ async function init() {
   // Invite-only: no public join link. Non-members are told to contact an admin.
   $('create-flight').addEventListener('click', createFlight);
   $('create-car').addEventListener('click', createCar);
+  $('save-riders').addEventListener('click', saveRiders);
 }
 
 init();

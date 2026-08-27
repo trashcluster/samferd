@@ -24,7 +24,7 @@
 
   <!-- Main app -->
   <main id="app" class="hidden">
-    <!-- Day tabs: one button per travel day, most recent on the left -->
+²    <!-- Day tabs: one button per travel day, most recent on the left -->
     <div id="day-tabs" class="day-tabs"></div>
 
     <!-- Three separate white canvases: cars-out, flights, cars-return -->
@@ -89,6 +89,14 @@
         </label>
         <button id="admin-save-flight" class="btn primary">Save flight</button>
       </div>
+    </section>
+
+    <!-- Rider editor (driver/admin only) -->
+    <section id="rider-editor" class="panel form hidden">
+      <h2 id="rider-editor-title">Passengers</h2>
+      <p class="hint">Tick the people travelling with you. Seats are arranged with the driver outside the app.</p>
+      <div id="rider-list" class="rider-list"></div>
+      <button id="save-riders" class="btn primary">Save passengers</button>
     </section>
   </main>
 

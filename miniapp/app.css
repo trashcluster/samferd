@@ -258,6 +258,36 @@ body {
   font-size: 13px;
 }
 
+.hint {
+  margin: -6px 0 12px;
+  font-size: 13px;
+  color: var(--tg-theme-hint-color, #888);
+}
+
+.rider-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 320px;
+  overflow-y: auto;
+  margin-bottom: 12px;
+}
+
+.rider-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--tg-theme-secondary-bg-color, #f7f7f7);
+  font-size: 14px;
+}
+
+.rider-row input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+}
+
 .btn:disabled { opacity: 0.5; }
 
 .toast {

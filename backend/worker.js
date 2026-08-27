@@ -17,7 +17,7 @@ const encoder = new TextEncoder();
 // Config (secrets come from env bindings; see wrangler.toml)
 // ---------------------------------------------------------------------------
 
-const GROUP_ID = () => Number(env.GROUP_ID);
+const GROUP_ID = () => env.GROUP_ID; // comma-separated whitelist of chat ids
 const BOT_TOKEN = () => env.BOT_TOKEN;
 const FLIGHT_API_PROVIDER = () => env.FLIGHT_API_PROVIDER || '';
 const FLIGHT_API_KEY = () => env.FLIGHT_API_KEY || '';
@@ -122,13 +122,27 @@ async function validateInitData(initData, botToken) {
 
 const ALLOWED = new Set(['creator', 'administrator', 'member']);
 
-async function getMembership(userId) {
+/** Parse the GROUP_ID secret as a whitelist: comma-separated chat ids. */
+function allowedGroups() {
+  return String(GROUP_ID())
+    .split(',')
+    .map((s) => Number(s.trim()))
+    .filter((n) => Number.isFinite(n) && n !== 0);
+}
+
+async function getMembership(userId, chatId) {
   const url = `https://api.telegram.org/bot${BOT_TOKEN()}/getChatMember`
-    + `?chat_id=${GROUP_ID()}&user_id=${userId}`;
+    + `?chat_id=${chatId}&user_id=${userId}`;
   const res = await fetch(url);
   const body = await res.json();
   if (!body.ok) return { status: 'left' };
   return body.result;
+}
+
+function statusAllows(member) {
+  let allowed = ALLOWED.has(member.status);
+  if (member.status === 'restricted') allowed = member.is_member === true;
+  return allowed;
 }
 
 async function isAllowedMember(userId) {
@@ -140,10 +154,14 @@ async function isAllowedMember(userId) {
     return cached === 'yes';
   }
 
-  const member = await getMembership(userId);
-  console.log('[auth] getChatMember status:', member.status, 'is_member:', member.is_member);
-  let allowed = ALLOWED.has(member.status);
-  if (member.status === 'restricted') allowed = member.is_member === true;
+  // Whitelist: membership in ANY of the configured groups grants access.
+  const groups = allowedGroups();
+  let allowed = false;
+  for (const chatId of groups) {
+    const member = await getMembership(userId, chatId);
+    console.log('[auth] getChatMember', chatId, 'status:', member.status, 'is_member:', member.is_member);
+    if (statusAllows(member)) { allowed = true; break; }
+  }
 
   await env.SAMFERD.put(cacheKey, allowed ? 'yes' : 'no', { expirationTtl: 300 });
   return allowed;

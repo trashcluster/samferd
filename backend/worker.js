@@ -146,25 +146,16 @@ function statusAllows(member) {
 }
 
 async function isAllowedMember(userId) {
-  // Short-term cache (5 min) to avoid hammering getChatMember on every call.
-  const cacheKey = `member:${userId}`;
-  const cached = await env.SAMFERD.get(cacheKey);
-  if (cached !== null) {
-    console.log('[auth] membership from cache:', userId, '=>', cached);
-    return cached === 'yes';
-  }
-
-  // Whitelist: membership in ANY of the configured groups grants access.
+  // No caching: membership is checked live on every request. With this app's
+  // tiny user base the Bot API load is negligible, and it means access is
+  // revoked/granted immediately when someone leaves/joins a whitelisted group.
   const groups = allowedGroups();
-  let allowed = false;
   for (const chatId of groups) {
     const member = await getMembership(userId, chatId);
     console.log('[auth] getChatMember', chatId, 'status:', member.status, 'is_member:', member.is_member);
-    if (statusAllows(member)) { allowed = true; break; }
+    if (statusAllows(member)) return true;
   }
-
-  await env.SAMFERD.put(cacheKey, allowed ? 'yes' : 'no', { expirationTtl: 300 });
-  return allowed;
+  return false;
 }
 
 /** Resolve the authenticated member from a request, or null. */

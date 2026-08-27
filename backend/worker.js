@@ -279,7 +279,10 @@ async function fetchAeroDataBox(flightNumber, departureDate) {
 
   const url = `https://aerodatabox.p.rapidapi.com/flights/number/`
     + `${encodeURIComponent(flightNumber)}/${encodeURIComponent(departureDate)}`
-    + '?dateLocalRole=Departure';
+    // 'Both' is the API's recommended role: matches flights departing OR
+    // arriving on the date. A strict 'Departure' filter silently drops
+    // schedule records classified by their arrival date.
+    + '?withAircraftImage=false&withLocation=false&withFlightPlan=false&dateLocalRole=Both';
   try {
     const res = await fetch(url, {
       headers: {

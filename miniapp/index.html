@@ -94,8 +94,11 @@
     <!-- Rider editor (driver/admin only) -->
     <section id="rider-editor" class="panel form hidden">
       <h2 id="rider-editor-title">Passengers</h2>
-      <p class="hint">Tick the people travelling with you. Seats are arranged with the driver outside the app.</p>
-      <div id="rider-list" class="rider-list"></div>
+      <p class="hint">Search and tick the people travelling with you, or type a custom name. Seats are arranged with the driver outside the app.</p>
+      <input id="rider-search" type="text" placeholder="Search people or add a custom name…" autocomplete="off" />
+      <div id="rider-search-results" class="rider-list"></div>
+      <h2 class="mt">Selected (<span id="rider-count">0</span>)</h2>
+      <div id="rider-selected" class="rider-list"></div>
       <button id="save-riders" class="btn primary">Save passengers</button>
     </section>
 

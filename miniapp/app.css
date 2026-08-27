@@ -270,24 +270,40 @@ body {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  max-height: 320px;
+  max-height: 260px;
   overflow-y: auto;
-  margin-bottom: 12px;
+  margin: 8px 0 12px;
 }
 
 .rider-row {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 10px;
-  padding: 8px 10px;
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  border: 1px solid var(--tg-theme-section-separator-color, #ddd);
   border-radius: 10px;
   background: var(--tg-theme-secondary-bg-color, #f7f7f7);
+  color: var(--tg-theme-text-color, #000);
   font-size: 14px;
+  cursor: pointer;
 }
 
-.rider-row input[type="checkbox"] {
-  width: 18px;
-  height: 18px;
+.rider-row.selected {
+  background: var(--tg-theme-section-bg-color, #eee);
+  border-color: var(--tg-theme-button-color, #2ea6ff);
+}
+
+.rider-row.custom {
+  border-style: dashed;
+}
+
+.rider-action {
+  color: var(--tg-theme-hint-color, #888);
+  font-size: 13px;
+  white-space: nowrap;
 }
 
 /* Invisible clearance at the end of the page (height set by app.js). */

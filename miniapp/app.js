@@ -311,40 +311,115 @@ async function handleAction(act, id) {
 // --- Rider editor (driver/admin only) ---------------------------------------
 
 let riderCarId = null;
-let riderSelection = new Set();
+// Selected riders: { id?: number, name: string }. Known users keep their id;
+// custom entries have only a name.
+let riderSelection = [];
 
 function openRiderEditor(carId) {
   const car = allCars.find((c) => c.id === carId);
   if (!car) return;
   riderCarId = carId;
-  riderSelection = new Set(car.riders.map((r) => r.id));
-
-  // Candidate passengers: everyone known to the app except the driver.
-  const candidates = knownUsers.filter((u) => u.id !== car.driver.id);
+  riderSelection = car.riders.map((r) => ({ id: r.id, name: r.name }));
 
   $('rider-editor-title').textContent = `Passengers — ${car.driver.name}`;
-  $('rider-list').innerHTML = candidates.length
-    ? candidates.map((u) => `
-        <label class="rider-row">
-          <input type="checkbox" data-rider="${u.id}" ${riderSelection.has(u.id) ? 'checked' : ''} />
-          <span>${escapeHtml(u.name)}</span>
-        </label>`).join('')
-    : '<div class="empty">No other users have opened the app yet.</div>';
+  $('rider-search').value = '';
+  renderRiderResults('');
+  renderRiderSelected();
 
   $('rider-editor').classList.remove('hidden');
   $('rider-editor').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
 
-  $('rider-list').querySelectorAll('[data-rider]').forEach((cb) => {
-    cb.addEventListener('change', () => {
-      const rid = Number(cb.dataset.rider);
-      if (cb.checked) riderSelection.add(rid); else riderSelection.delete(rid);
+// Search results: shown only when at least one letter is typed. Matching known
+// users appear as tappable rows; if the exact typed name isn't among them, a
+// "add custom" row is offered.
+function renderRiderResults(query) {
+  const q = query.trim().toLowerCase();
+  const box = $('rider-search-results');
+
+  if (q.length < 1) {
+    box.innerHTML = '<div class="empty">Type at least one letter to search.</div>';
+    return;
+  }
+
+  const driverId = riderCarId !== null
+    ? (allCars.find((c) => c.id === riderCarId)?.driver.id ?? null)
+    : null;
+
+  const matches = knownUsers.filter((u) =>
+    u.id !== driverId && u.name.toLowerCase().includes(q));
+
+  const exactKnown = matches.some((u) => u.name.toLowerCase() === q);
+  const alreadySelected = riderSelection.some((r) => r.name.toLowerCase() === q);
+
+  let html = matches.map((u) => {
+    const sel = riderSelection.some((r) => r.id === u.id);
+    return `
+      <button class="rider-row${sel ? ' selected' : ''}" data-pick-id="${u.id}">
+        <span>${escapeHtml(u.name)}</span>
+        <span class="rider-action">${sel ? '✓ remove' : '+ add'}</span>
+      </button>`;
+  }).join('');
+
+  // Offer a custom entry when the typed name isn't an exact known match.
+  if (!exactKnown && !alreadySelected) {
+    html += `
+      <button class="rider-row custom" data-pick-name="${escapeHtml(query.trim())}">
+        <span>➕ Add “${escapeHtml(query.trim())}”</span>
+        <span class="rider-action">custom</span>
+      </button>`;
+  }
+
+  box.innerHTML = html || '<div class="empty">No matches.</div>';
+
+  box.querySelectorAll('[data-pick-id]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const id = Number(btn.dataset.pickId);
+      const u = knownUsers.find((x) => x.id === id);
+      if (!u) return;
+      const idx = riderSelection.findIndex((r) => r.id === id);
+      if (idx >= 0) riderSelection.splice(idx, 1);
+      else riderSelection.push({ id: u.id, name: u.name });
+      renderRiderResults($('rider-search').value);
+      renderRiderSelected();
+    });
+  });
+
+  box.querySelectorAll('[data-pick-name]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const name = btn.dataset.pickName;
+      if (!name) return;
+      riderSelection.push({ name });
+      $('rider-search').value = '';
+      renderRiderResults('');
+      renderRiderSelected();
+    });
+  });
+}
+
+function renderRiderSelected() {
+  $('rider-count').textContent = String(riderSelection.length);
+  const box = $('rider-selected');
+  box.innerHTML = riderSelection.length
+    ? riderSelection.map((r, i) => `
+        <button class="rider-row selected" data-remove="${i}">
+          <span>${escapeHtml(r.name)}</span>
+          <span class="rider-action">✕</span>
+        </button>`).join('')
+    : '<div class="empty">No passengers selected.</div>';
+
+  box.querySelectorAll('[data-remove]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      riderSelection.splice(Number(btn.dataset.remove), 1);
+      renderRiderResults($('rider-search').value);
+      renderRiderSelected();
     });
   });
 }
 
 async function saveRiders() {
   if (riderCarId === null) return;
-  const riders = [...riderSelection].map((id) => ({ id }));
+  const riders = riderSelection.map((r) => ({ id: r.id ?? null, name: r.name }));
   try {
     await call('POST', `/api/cars/${riderCarId}/riders`, { riders });
     toast('Passengers saved.');
@@ -525,6 +600,7 @@ async function init() {
   $('create-flight').addEventListener('click', createFlight);
   $('create-car').addEventListener('click', createCar);
   $('save-riders').addEventListener('click', saveRiders);
+  $('rider-search').addEventListener('input', (e) => renderRiderResults(e.target.value));
 }
 
 init();

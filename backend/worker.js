@@ -519,21 +519,29 @@ async function handle(request) {
     if (riders.length > car.freeSeats) {
       return json({ ok: false, error: 'full', message: `This car has only ${car.freeSeats} seat(s).` }, 400);
     }
-    // Riders must be known users (seen in the app) and not the driver.
+    // Riders are either known users (matched by id against the user cache) or
+    // custom entries with just a name (e.g. someone not yet in the group).
+    // The driver is never a rider of their own car.
     const clean = [];
     for (const r of riders) {
+      const name = String(r && r.name || '').trim().slice(0, 100);
+      if (!name) continue;
       const rid = Number(r && r.id);
-      if (!Number.isFinite(rid)) continue;
-      if (rid === car.driver.id) continue;
-      const known = await env.SAMFERD.get(`user:${rid}`);
-      if (known === null) continue; // unknown user — skip
-      let info;
-      try { info = JSON.parse(known); } catch { continue; }
-      clean.push({
-        id: info.id || rid,
-        name: info.name || `#${rid}`,
-        username: info.username ?? null,
-      });
+      if (Number.isFinite(rid) && rid > 0) {
+        if (rid === car.driver.id) continue;
+        const known = await env.SAMFERD.get(`user:${rid}`);
+        if (known === null) continue; // unknown id — skip
+        let info;
+        try { info = JSON.parse(known); } catch { continue; }
+        clean.push({
+          id: info.id || rid,
+          name: info.name || name || `#${rid}`,
+          username: info.username ?? null,
+        });
+      } else {
+        // Custom entry: display name only.
+        clean.push({ id: null, name, username: null });
+      }
     }
     car.riders = clean;
     await saveBoard(board);

@@ -232,7 +232,7 @@ const ENRICH_PREFIX = 'enrich:';
 
 async function enrichFlight(flightNumber, departureDate) {
   const provider = FLIGHT_API_PROVIDER();
-  if (!provider || provider === 'none' || !FLIGHT_API_KEY()) {
+  if (!provider || provider === 'none') {
     return null; // enrichment disabled
   }
 
@@ -246,13 +246,63 @@ async function enrichFlight(flightNumber, departureDate) {
 
   // 2. First time — call the provider.
   let data = null;
-  if (provider === 'airlabs') {
+  if (provider === 'aerodatabox') {
+    data = await fetchAeroDataBox(flightNumber, departureDate);
+  } else if (provider === 'airlabs') {
     data = await fetchAirLabs(flightNumber, departureDate);
   }
 
   // 3. Cache whatever we got (including null → empty string).
   await env.SAMFERD.put(cacheKey, data ? JSON.stringify(data) : '');
   return data;
+}
+
+// AeroDataBox via RapidAPI. The API key is stored in KV under `RAPIDAPI_KEY`
+// (set with `wrangler kv key put RAPIDAPI_KEY --binding=SAMFERD --remote`),
+// so it can be rotated without redeploying.
+async function fetchAeroDataBox(flightNumber, departureDate) {
+  const apiKey = await env.SAMFERD.get('RAPIDAPI_KEY');
+  if (!apiKey) {
+    console.log('[enrich] no RAPIDAPI_KEY in KV — AeroDataBox disabled');
+    return null;
+  }
+
+  const url = `https://aerodatabox.p.rapidapi.com/flights/number/`
+    + `${encodeURIComponent(flightNumber)}/${encodeURIComponent(departureDate)}`
+    + '?dateLocalRole=Departure';
+  try {
+    const res = await fetch(url, {
+      headers: {
+        'x-rapidapi-key': apiKey,
+        'x-rapidapi-host': 'aerodatabox.p.rapidapi.com',
+      },
+    });
+    const text = await res.text();
+    console.log('[enrich] status:', res.status, 'flight:', flightNumber, departureDate);
+    console.log('[enrich] body:', text.slice(0, 1000));
+    if (!res.ok) return null;
+    let body;
+    try { body = JSON.parse(text); } catch { return null; }
+    // Response is an array of flights matching the number on that date.
+    const flights = Array.isArray(body) ? body : [];
+    if (!flights.length) return null;
+    // Prefer the first flight with departure data.
+    const f = flights.find((x) => x && x.departure && x.departure.airport) || flights[0];
+    const dep = f.departure || {};
+    const arr = f.arrival || {};
+    const depAirport = dep.airport || {};
+    const arrAirport = arr.airport || {};
+    return {
+      origin: depAirport.iata || depAirport.icao || depAirport.name || null,
+      destination: arrAirport.iata || arrAirport.icao || arrAirport.name || null,
+      // scheduledTime.local is the airport-local departure time.
+      departureTime: toLocalHHMM(dep.scheduledTime?.local),
+      terminal: dep.terminal || null,
+      gate: dep.gate || null,
+    };
+  } catch {
+    return null;
+  }
 }
 
 async function fetchAirLabs(flightNumber, departureDate) {

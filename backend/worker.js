@@ -30,7 +30,8 @@ const RAPIDAPI_KEY = () => env.RAPIDAPI_KEY || '';
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET,POST,PATCH,DELETE,OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, X-Init-Data',
+  // X-Group-Id selects the group's board — must be allowed in preflight.
+  'Access-Control-Allow-Headers': 'Content-Type, X-Init-Data, X-Group-Id',
 };
 
 function json(data, status = 200) {

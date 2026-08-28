@@ -430,30 +430,50 @@ if (tg) {
     }
   });
 
-  // Add to home screen (Bot API 8.0+ on supported clients): offer the native
-  // install prompt once the app is up. The button stays hidden on clients
-  // that don't expose the method, and disappears permanently once the icon
-  // has been added (event) or is already present (status check).
-  if (typeof tg.addToHomeScreen === 'function') {
+  // Add to home screen (Bot API 8.0+ on supported clients). Rule: the button
+  // is ONLY shown when the client explicitly reports status 'missed' (feature
+  // supported, icon not added, and detectable). Anything else — 'added',
+  // 'unknown' (client can't tell; common on Android), 'unsupported', an error,
+  // or a missing method — keeps the button hidden ("if unsure, don't show").
+  if (typeof tg.addToHomeScreen === 'function' && typeof tg.checkHomeScreenStatus === 'function') {
     const homeBtn = document.getElementById('add-home');
-    const hideHomeBtn = () => { if (homeBtn) homeBtn.classList.add('hidden'); };
-    // Already added (or unsupported status)? Don't show the button at all.
-    try {
-      if (typeof tg.checkHomeScreenStatus === 'function') {
+    const hideHomeBtn = () => {
+      if (homeBtn) homeBtn.classList.add('hidden');
+      try { localStorage.setItem('samferdHomeAdded', '1'); } catch (_) {}
+    };
+    // Belt-and-braces: if we ever saw a successful add on this device, never
+    // show the button again (covers clients that report 'unknown' forever).
+    let alreadyAdded = false;
+    try { alreadyAdded = localStorage.getItem('samferdHomeAdded') === '1'; } catch (_) {}
+
+    if (alreadyAdded) {
+      // Previously added on this device — don't even ask the client.
+    } else {
+      try {
         tg.checkHomeScreenStatus((status) => {
-          // status.status: 'unsupported' | 'unknown' | 'added' | 'missed'
-          if (status?.status === 'added') hideHomeBtn();
+          // NOTE: the callback receives the status as a plain STRING
+          // ('unsupported' | 'unknown' | 'added' | 'missed'), not an object.
+          if (status === 'missed') {
+            // Supported, not added, and detectable → safe to offer.
+            if (homeBtn) homeBtn.classList.remove('hidden');
+          } else if (status === 'added') {
+            hideHomeBtn();
+          }
+          // 'unknown' / 'unsupported' / anything else → stay hidden.
+        });
+      } catch (_) { /* unsure → don't show */ }
+      // The client confirms the icon was added → remove the button.
+      tg.onEvent('homeScreenAdded', hideHomeBtn);
+      // Some clients report the result via homeScreenChecked instead.
+      tg.onEvent('homeScreenChecked', (res) => {
+        if (res?.status === 'added') hideHomeBtn();
+      });
+      if (homeBtn) {
+        homeBtn.addEventListener('click', () => {
+          try { tg.addToHomeScreen(); } catch (_) { hideHomeBtn(); }
         });
       }
-    } catch (_) { hideHomeBtn(); } // unsure → don't show it
-    if (homeBtn) {
-      homeBtn.classList.remove('hidden');
-      homeBtn.addEventListener('click', () => {
-        try { tg.addToHomeScreen(); } catch (_) { hideHomeBtn(); }
-      });
     }
-    // The client confirms the icon was added → remove the button.
-    tg.onEvent('homeScreenAdded', hideHomeBtn);
   }
 }
 

@@ -192,6 +192,12 @@ body {
   font-style: italic;
 }
 
+.flight-airline {
+  color: var(--tg-theme-hint-color, #888);
+  font-size: 13px;
+  margin-top: 2px;
+}
+
 .passengers {
   margin: 8px 0 0;
   padding: 0;

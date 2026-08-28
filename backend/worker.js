@@ -308,10 +308,12 @@ async function fetchAeroDataBox(flightNumber, departureDate) {
     return {
       origin: depAirport.iata || depAirport.icao || depAirport.name || null,
       destination: arrAirport.iata || arrAirport.icao || arrAirport.name || null,
-      // scheduledTime.local is the airport-local departure time.
+      // scheduledTime.local is the airport-local departure/arrival time.
       departureTime: toLocalHHMM(dep.scheduledTime?.local),
+      arrivalTime: toLocalHHMM(arr.scheduledTime?.local),
       terminal: dep.terminal || null,
       gate: dep.gate || null,
+      airline: f.airline?.name || null,
     };
   } catch {
     return null;
@@ -433,8 +435,10 @@ async function handle(request) {
       origin: enrichment?.origin || null,
       destination: enrichment?.destination || null,
       departureTime: enrichment?.departureTime || null,
+      arrivalTime: enrichment?.arrivalTime || null,
       terminal: enrichment?.terminal || null,
       gate: enrichment?.gate || null,
+      airline: enrichment?.airline || null,
       status: null,
       createdBy: user.id,
       passengers: [],
@@ -614,8 +618,8 @@ async function handle(request) {
       }
       if (n) flight.flightNumber = n;
     }
-    // Departure city/airport, time, and other info.
-    for (const f of ['origin', 'destination', 'departureTime', 'terminal', 'gate', 'status']) {
+    // Departure city/airport, times, and other info.
+    for (const f of ['origin', 'destination', 'departureTime', 'arrivalTime', 'terminal', 'gate', 'airline', 'status']) {
       if (f in body) flight[f] = body[f] ? String(body[f]) : null;
     }
 

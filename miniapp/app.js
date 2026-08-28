@@ -306,8 +306,15 @@ function renderFlight(f) {
   const status = f.status ? ` · ${escapeHtml(f.status)}` : '';
 
   const dateLine = formatDate(f.departureDate);
-  const timeParts = [f.departureTime, f.terminal ? `T${escapeHtml(f.terminal)}` : '', f.gate ? `G${escapeHtml(f.gate)}` : ''].filter(Boolean).join(' ');
+  // Departure time is the primary reading cue; arrival time shown when known.
+  const timeParts = [
+    f.departureTime,
+    f.arrivalTime ? `→ ${f.arrivalTime}` : '',
+    f.terminal ? `T${escapeHtml(f.terminal)}` : '',
+    f.gate ? `G${escapeHtml(f.gate)}` : '',
+  ].filter(Boolean).join(' ');
   const timeLine = timeParts ? ` · ${escapeHtml(timeParts)}` : '';
+  const airlineLine = f.airline ? `<div class="flight-airline">${escapeHtml(f.airline)}</div>` : '';
 
   const onFlight = f.passengers.some((p) => p.id === me);
   const isCreator = f.createdBy === me;
@@ -332,6 +339,7 @@ function renderFlight(f) {
         <span class="flight-date">${escapeHtml(dateLine)}${timeLine}</span>
       </div>
       <div class="flight-route">${route}${status}</div>
+      ${airlineLine}
       <ul class="passengers">${people}</ul>
       <div class="flight-actions">${actions}</div>
     </div>`;

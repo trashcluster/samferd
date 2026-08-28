@@ -208,6 +208,14 @@ function renderDayPanel(day, flights, cars) {
     '<h2 class="section-title">🚗 Cars to the airport</h2>' +
     (carsOut.length ? carsOut.map(renderCar).join('') : '<div class="empty">No cars to the airport yet.</div>');
 
+  // Sort flights by departure time (earliest first); flights without a known
+  // time sort last, in creation order.
+  dayFlights.sort((a, b) => {
+    const ta = a.departureTime || '99:99';
+    const tb = b.departureTime || '99:99';
+    return ta.localeCompare(tb) || a.id - b.id;
+  });
+
   $('board-flights').innerHTML =
     '<h2 class="section-title">🛫 Flights</h2>' +
     (dayFlights.length ? dayFlights.map(renderFlight).join('') : '<div class="empty">No flights this day.</div>');

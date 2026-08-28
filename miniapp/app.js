@@ -432,15 +432,28 @@ if (tg) {
 
   // Add to home screen (Bot API 8.0+ on supported clients): offer the native
   // install prompt once the app is up. The button stays hidden on clients
-  // that don't expose the method.
+  // that don't expose the method, and disappears permanently once the icon
+  // has been added (event) or is already present (status check).
   if (typeof tg.addToHomeScreen === 'function') {
     const homeBtn = document.getElementById('add-home');
+    const hideHomeBtn = () => { if (homeBtn) homeBtn.classList.add('hidden'); };
+    // Already added (or unsupported status)? Don't show the button at all.
+    try {
+      if (typeof tg.checkHomeScreenStatus === 'function') {
+        tg.checkHomeScreenStatus((status) => {
+          // status.status: 'unsupported' | 'unknown' | 'added' | 'missed'
+          if (status?.status === 'added') hideHomeBtn();
+        });
+      }
+    } catch (_) { hideHomeBtn(); } // unsure → don't show it
     if (homeBtn) {
       homeBtn.classList.remove('hidden');
       homeBtn.addEventListener('click', () => {
-        try { tg.addToHomeScreen(); } catch (_) {}
+        try { tg.addToHomeScreen(); } catch (_) { hideHomeBtn(); }
       });
     }
+    // The client confirms the icon was added → remove the button.
+    tg.onEvent('homeScreenAdded', hideHomeBtn);
   }
 }
 
@@ -1336,15 +1349,36 @@ async function startApp() {
     $('app').classList.remove('hidden');
     renderGroupHeader();
     await refresh();
-    // All required data (auth, board, cars, users) is loaded and rendered —
-    // only now tell Telegram to reveal the app, so the user never sees a
-    // half-painted screen behind the loading placeholder.
+    // All required data (auth, board, cars, users) is loaded AND fully
+    // rendered. Give the browser a couple of frames plus a short settle so
+    // layout, day tabs and section cards are painted before revealing the
+    // app — the user must never see a half-painted board.
+    await settleBeforeReady();
     if (tg) { try { tg.ready(); } catch (_) {} }
   } catch (e) {
     // 403 → not a member of any whitelisted group
     showDenied(t.membersOnly, t.membersOnlyText, t.askAdmin);
     if (tg) { try { tg.ready(); } catch (_) {} }
   }
+}
+
+// Wait until the DOM is painted and stable: two animation frames guarantee
+// layout/paint, then a short delay lets images (group photo) and fonts settle.
+function settleBeforeReady() {
+  return new Promise((resolve) => {
+    requestAnimationFrame(() => requestAnimationFrame(async () => {
+      // Wait for any <img> that is still loading (group photo, etc.), max 1.5s.
+      const imgs = [...document.querySelectorAll('#app img, #group-header img')]
+        .filter((i) => !i.complete);
+      if (imgs.length) {
+        await Promise.race([
+          Promise.all(imgs.map((i) => new Promise((r) => { i.onload = i.onerror = r; }))),
+          new Promise((r) => setTimeout(r, 1500)),
+        ]);
+      }
+      setTimeout(resolve, 250);
+    }));
+  });
 }
 
 /**

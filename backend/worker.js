@@ -176,7 +176,11 @@ async function resolveGroups(userId) {
     // --- Group lifecycle: track whether the bot is still admin in this group.
     const regKey = `group:${chatId}`;
     const regRaw = await env.SAMFERD.get(regKey);
-    let reg = regRaw ? JSON.parse(regRaw) : null;
+    let reg;
+    try { reg = regRaw ? JSON.parse(regRaw) : null; } catch { reg = null; }
+    if (!reg || typeof reg !== 'object') {
+      reg = { title: `Group ${chatId}`, photoUrl: null, botAdmin: null, pendingDeleteAt: null };
+    }
     const botAdmin = statusIsAdmin(await getMembership(await botId(), chatId));
 
     if (botAdmin) {
@@ -196,10 +200,9 @@ async function resolveGroups(userId) {
       }
     } else {
       // Bot lost admin: mark the board for deletion in 24 h (once).
-      if (!reg || !reg.pendingDeleteAt) {
+      if (!reg.pendingDeleteAt) {
         console.log('[lifecycle] bot lost admin of', chatId, '— board marked for deletion in 24h');
       }
-      reg = reg || { title: `Group ${chatId}`, photoUrl: null };
       reg.pendingDeleteAt = reg.pendingDeleteAt || (Date.now() + 24 * 3600 * 1000);
     }
 

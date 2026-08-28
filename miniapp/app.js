@@ -547,6 +547,12 @@ function formatDate(iso) {
 // The travel day currently selected. `null` = auto (most recent day).
 let selectedDay = null;
 
+// Open/closed state of the board sections, driven by the user's toggles.
+// Persists across day switches and view changes within the session (so an
+// expanded section stays expanded when browsing other dates), but resets
+// to all-collapsed on a fresh app open.
+const sectionOpen = { 'cars-out': false, flights: false, 'cars-return': false };
+
 function renderBoard(flights, cars) {
   allCars = cars || [];
 
@@ -661,7 +667,7 @@ function renderDayPanel(day, flights, cars) {
 
   for (const s of sections) {
     const panel = $(`board-${s.key}`);
-    const open = false; // always collapsed on (re)render
+    const open = sectionOpen[s.key] === true;
     panel.innerHTML = `
       <div class="section-head">
         <button class="section-toggle" data-section="${s.key}" aria-expanded="${open}">
@@ -711,13 +717,16 @@ function bindSectionAddButtons() {
   });
 }
 
-// Toggle collapse/expand for a section card.
+// Toggle collapse/expand for a section card. The state is remembered for
+// the whole session: switching day or tab keeps sections as the user left
+// them; only a fresh app open resets to all-collapsed.
 function bindSectionToggles() {
   document.querySelectorAll('.section-toggle').forEach((btn) => {
     btn.addEventListener('click', () => {
       const body = document.querySelector(`[data-body="${btn.dataset.section}"]`);
       if (!body) return;
       const collapsed = body.classList.toggle('collapsed');
+      sectionOpen[btn.dataset.section] = !collapsed;
       btn.setAttribute('aria-expanded', String(!collapsed));
       const chev = btn.querySelector('.chev');
       if (chev) chev.textContent = collapsed ? '▸' : '▾';

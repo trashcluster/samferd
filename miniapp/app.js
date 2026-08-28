@@ -1325,7 +1325,9 @@ async function showDenied(title, text, hint) {
   $('denied').classList.remove('hidden');
   $('denied-title').textContent = title;
   $('denied-text').textContent = text;
-  $('denied-hint').textContent = hint;
+  // Build tag: proves which version the webview is actually running.
+  const build = document.getElementById('build-tag');
+  $('denied-hint').textContent = (hint ? hint + ' · ' : '') + (build ? build.textContent : '');
 
   // Distinguish "not a member" from "bot lost admin": ask the backend which
   // whitelisted groups the bot can still see.

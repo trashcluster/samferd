@@ -5,9 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
   <title>Samferd</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <link rel="stylesheet" href="app.css" />
+  <link rel="stylesheet" href="app.css?v=20260828b" />
 </head>
 <body>
+  <!-- Visible version tag: proves which build the webview is running. -->
+  <div id="build-tag" style="display:none">build 2026-08-28b</div>
   <header class="topbar">
     <h1>✈️ Samferd</h1>
   </header>
@@ -190,6 +192,15 @@
 
   <div id="toast" class="toast hidden"></div>
 
-  <script src="app.js"></script>
+  <script>
+    // Surface any uncaught error on screen — silent failures cost hours.
+    window.addEventListener('error', function (e) {
+      var el = document.getElementById('toast');
+      if (!el) return;
+      el.textContent = '⚠️ JS error: ' + (e.message || 'unknown') + ' @ ' + (e.lineno || '?');
+      el.classList.remove('hidden');
+    });
+  </script>
+  <script src="app.js?v=20260828b"></script>
 </body>
 </html>

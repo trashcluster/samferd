@@ -417,6 +417,12 @@ function renderRiderSelected() {
   });
 }
 
+function closeRiderEditor() {
+  $('rider-editor').classList.add('hidden');
+  riderCarId = null;
+  riderSelection = [];
+}
+
 async function saveRiders() {
   if (riderCarId === null) return;
   const riders = riderSelection.map((r) => ({ id: r.id ?? null, name: r.name }));
@@ -600,6 +606,7 @@ async function init() {
   $('create-flight').addEventListener('click', createFlight);
   $('create-car').addEventListener('click', createCar);
   $('save-riders').addEventListener('click', saveRiders);
+  $('close-riders').addEventListener('click', closeRiderEditor);
   $('rider-search').addEventListener('input', (e) => renderRiderResults(e.target.value));
 }
 

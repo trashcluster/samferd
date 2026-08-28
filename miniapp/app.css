@@ -313,6 +313,15 @@ body {
 
 .btn:disabled { opacity: 0.5; }
 
+.btn-row {
+  display: flex;
+  gap: 8px;
+}
+
+.btn-row .btn {
+  flex: 1;
+}
+
 .toast {
   position: fixed;
   left: 50%;

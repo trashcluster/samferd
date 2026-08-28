@@ -171,6 +171,9 @@ function renderDayTabs(sortedDays) {
   $('day-tabs').querySelectorAll('.day-tab').forEach((btn) => {
     btn.addEventListener('click', () => {
       selectedDay = btn.dataset.day;
+      // The passenger editor belongs to a car on a specific day; close it when
+      // switching days so it doesn't linger over unrelated content.
+      closeRiderEditor();
       renderDayTabs(sortedDays);
       renderDayPanel(selectedDay, allFlights, allCars);
     });

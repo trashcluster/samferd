@@ -300,6 +300,89 @@ function bindBoardActions() {
   });
 }
 
+// --- My journey view ---------------------------------------------------------
+// A personal summary: for each upcoming day, the transport the user drives or
+// rides in, and the flights they are on — so missing legs are obvious.
+
+let currentView = 'board';
+
+function setView(view) {
+  currentView = view;
+  const board = view === 'board';
+  $('view-board').classList.toggle('active', board);
+  $('view-journey').classList.toggle('active', !board);
+  $('journey-view').classList.toggle('hidden', board);
+  for (const id of ['board-cars-out', 'board-flights', 'board-cars-return']) {
+    $(id).classList.toggle('hidden', !board);
+  }
+  $('day-tabs').classList.toggle('hidden', !board);
+  if (!board) renderJourney();
+}
+
+function renderJourney() {
+  const today = new Date().toISOString().slice(0, 10);
+  const box = $('journey-view');
+
+  // Collect the user's involvement per day.
+  const byDay = new Map();
+  const add = (date, entry) => {
+    if (!byDay.has(date)) byDay.set(date, []);
+    byDay.get(date).push(entry);
+  };
+
+  for (const f of allFlights) {
+    if (f.departureDate < today) continue;
+    if (f.passengers.some((p) => p.id === me)) {
+      add(f.departureDate, {
+        icon: '🛫',
+        main: `${f.flightNumber}${f.departureTime ? ` · ${f.departureTime}` : ''}`,
+        sub: f.origin && f.destination ? `${f.origin} → ${f.destination}` : 'route n/a',
+        ok: true,
+      });
+    }
+  }
+  for (const c of allCars) {
+    if (!c.date || c.date < today) continue;
+    const driving = c.driver.id === me;
+    const riding = c.riders.some((r) => r.id === me);
+    if (!driving && !riding) continue;
+    const mode = MODE_LABELS[c.mode] || MODE_LABELS.other;
+    const status = c.tripStatus === 'cancelled' ? 'cancelled'
+      : c.tripStatus === 'provisional' ? 'provisional' : 'confirmed';
+    add(c.date, {
+      icon: driving ? '🚗' : '🚗',
+      main: driving ? `${mode} — you drive` : `${mode} with ${c.driver.name}`,
+      sub: c.note || '',
+      ok: status === 'confirmed',
+      warn: status === 'provisional',
+      bad: status === 'cancelled',
+    });
+  }
+
+  const days = [...byDay.keys()].sort();
+  if (!days.length) {
+    box.innerHTML = '<section class="panel"><div class="empty">Nothing planned yet.<br/>Join a flight or transport from the Board tab.</div></section>';
+    return;
+  }
+
+  box.innerHTML = days.map((d) => {
+    const items = byDay.get(d).map((e) => `
+      <div class="journey-item${e.bad ? ' cancelled' : ''}">
+        <span class="journey-icon">${e.icon}</span>
+        <span class="journey-main">
+          <span>${escapeHtml(e.main)}</span>
+          ${e.sub ? `<span class="journey-sub">${escapeHtml(e.sub)}</span>` : ''}
+        </span>
+        <span class="badge ${e.bad ? 'bad' : e.warn ? 'warn' : 'ok'}">${e.bad ? 'cancelled' : e.warn ? 'provisional' : 'confirmed'}</span>
+      </div>`).join('');
+    return `
+      <section class="panel">
+        <h2 class="section-title">${escapeHtml(formatDate(d))}</h2>
+        ${items}
+      </section>`;
+  }).join('');
+}
+
 function renderFlight(f) {
   const route = f.origin && f.destination
     ? `<span class="route-origin">${escapeHtml(f.origin)}</span> → <span class="route-dest">${escapeHtml(f.destination)}</span>`
@@ -791,6 +874,8 @@ async function init() {
   $('rider-search').addEventListener('input', (e) => renderRiderResults(e.target.value));
   $('car-edit-save').addEventListener('click', saveCarEdits);
   $('car-edit-close').addEventListener('click', closeCarEditor);
+  $('view-board').addEventListener('click', () => setView('board'));
+  $('view-journey').addEventListener('click', () => setView('journey'));
 }
 
 init();

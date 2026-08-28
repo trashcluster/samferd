@@ -24,8 +24,17 @@
 
   <!-- Main app -->
   <main id="app" class="hidden">
+    <!-- View switcher: board vs my journey -->
+    <div class="view-tabs">
+      <button id="view-board" class="view-tab active">🗓️ Board</button>
+      <button id="view-journey" class="view-tab">🧭 My journey</button>
+    </div>
+
     <!-- Day tabs: one button per travel day, soonest upcoming first -->
     <div id="day-tabs" class="day-tabs"></div>
+
+    <!-- My journey summary (one panel per day, built by app.js) -->
+    <div id="journey-view" class="hidden"></div>
 
     <!-- Three separate white canvases: cars-out, flights, cars-return -->
     <section class="panel" id="board-cars-out"></section>

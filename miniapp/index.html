@@ -15,6 +15,22 @@
   <!-- Shown before membership is confirmed -->
   <div id="loading" class="panel">Loading…</div>
 
+  <!-- Group picker: shown when the user belongs to several whitelisted groups -->
+  <div id="group-picker" class="hidden">
+    <div class="panel">
+      <h2 id="group-picker-title">Choose a group</h2>
+      <div id="group-list" class="group-list"></div>
+    </div>
+  </div>
+
+  <!-- Group context header (name + photo + switcher) -->
+  <header id="group-header" class="group-header hidden">
+    <img id="group-photo" class="group-photo hidden" alt="" />
+    <div id="group-photo-fallback" class="group-photo-fallback hidden">✈️</div>
+    <span id="group-name" class="group-name"></span>
+    <button id="switch-group" class="btn small">⇄</button>
+  </header>
+
   <!-- Shown to non-members -->
   <div id="denied" class="panel hidden">
     <h2>🔒 Members only</h2>

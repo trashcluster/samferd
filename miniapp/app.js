@@ -261,10 +261,17 @@ let me = null;
 let isAdmin = false;
 let allFlights = []; // full flight objects, kept for the admin panel
 let knownUsers = []; // display info of users known to the app (for rider picker)
+let allCars = [];
+let currentGroup = null; // { id, title, photoUrl, admin }
+let myGroups = []; // groups the user belongs to
 
 // ---------------------------------------------------------------------------
 // API helpers
 // ---------------------------------------------------------------------------
+
+// The selected group id is sent with every request so the backend loads the
+// right group's board and derives admin rights for that group.
+let selectedGroupId = Number(localStorage.getItem('samferdGroupId')) || null;
 
 async function call(method, path, body) {
   const res = await fetch(API + path, {
@@ -272,6 +279,7 @@ async function call(method, path, body) {
     headers: {
       'Content-Type': 'application/json',
       'X-Init-Data': tg ? tg.initData : '',
+      ...(selectedGroupId ? { 'X-Group-Id': String(selectedGroupId) } : {}),
     },
     body: body ? JSON.stringify(body) : undefined,
   });
@@ -313,7 +321,6 @@ function formatDate(iso) {
 
 // The travel day currently selected. `null` = auto (most recent day).
 let selectedDay = null;
-let allCars = [];
 
 function renderBoard(flights, cars) {
   allCars = cars || [];
@@ -607,7 +614,7 @@ function renderFlight(f) {
       : `<button class="btn small primary" data-act="join-flight" data-id="${f.id}">${t.closeBtn === 'Fermer' ? 'Rejoindre' : 'Join'}</button>`,
     isCreator
       ? `<button class="btn small danger" data-act="del-flight" data-id="${f.id}">${t.delete}</button>`
-      : '',
+      : (isAdmin ? `<button class="btn small danger" data-act="del-flight" data-id="${f.id}">${t.delete} 🔒</button>` : ''),
   ].join('');
 
   return `
@@ -655,7 +662,7 @@ function renderCar(c) {
     ? [
         `<button class="btn small primary" data-act="edit-riders" data-id="${c.id}">${t.editPassengers}</button>`,
         `<button class="btn small" data-act="edit-car" data-id="${c.id}">${t.modify}</button>`,
-        `<button class="btn small danger" data-act="del-car" data-id="${c.id}">${t.delete}</button>`,
+        `<button class="btn small danger" data-act="del-car" data-id="${c.id}">${t.delete}${isAdmin && !isDriver ? ' 🔒' : ''}</button>`,
       ].join('')
     : '';
 
@@ -1066,6 +1073,79 @@ function applyStaticI18n() {
   }
 }
 
+// --- Group picker / group context -------------------------------------------
+
+function showGroupPicker(groups) {
+  $('loading').classList.add('hidden');
+  $('app').classList.add('hidden');
+  $('group-picker').classList.remove('hidden');
+  const list = $('group-list');
+  list.innerHTML = groups.map((g) => `
+    <button class="group-row" data-group="${g.id}">
+      ${g.photoUrl
+        ? `<img class="group-photo" src="${escapeHtml(g.photoUrl)}" alt="" />`
+        : '<span class="group-photo-fallback">✈️</span>'}
+      <span class="group-row-name">${escapeHtml(g.title)}</span>
+      ${g.admin ? '<span class="badge ok">admin</span>' : ''}
+    </button>`).join('');
+
+  list.querySelectorAll('[data-group]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      selectedGroupId = Number(btn.dataset.group);
+      localStorage.setItem('samferdGroupId', String(selectedGroupId));
+      $('group-picker').classList.add('hidden');
+      startApp();
+    });
+  });
+}
+
+function renderGroupHeader() {
+  if (!currentGroup) return;
+  $('group-header').classList.remove('hidden');
+  $('group-name').textContent = currentGroup.title;
+  const img = $('group-photo');
+  const fb = $('group-photo-fallback');
+  if (currentGroup.photoUrl) {
+    img.src = currentGroup.photoUrl;
+    img.classList.remove('hidden');
+    fb.classList.add('hidden');
+  } else {
+    img.classList.add('hidden');
+    fb.classList.remove('hidden');
+  }
+  // Admins get a lock badge next to the group name.
+  const lock = document.getElementById('group-admin-lock');
+  if (lock) lock.remove();
+  if (isAdmin) {
+    const span = document.createElement('span');
+    span.id = 'group-admin-lock';
+    span.className = 'admin-lock';
+    span.title = 'Admin';
+    span.textContent = ' 🔒';
+    $('group-name').appendChild(span);
+  }
+}
+
+async function startApp() {
+  try {
+    const auth = await call('GET', '/api/auth');
+    me = auth.user.id;
+    isAdmin = !!auth.isAdmin;
+    currentGroup = auth.group || null;
+    myGroups = auth.groups || [];
+    $('loading').classList.add('hidden');
+    $('group-picker').classList.add('hidden');
+    $('app').classList.remove('hidden');
+    renderGroupHeader();
+    await refresh();
+  } catch (e) {
+    // 403 → not a member of any whitelisted group
+    $('loading').classList.add('hidden');
+    $('group-picker').classList.add('hidden');
+    $('denied').classList.remove('hidden');
+  }
+}
+
 async function init() {
   // Telegram WebApp is required for identity. Allow a fallback note for web preview.
   if (!tg) {
@@ -1073,17 +1153,21 @@ async function init() {
     return;
   }
 
+  // Resolve the user's groups first: one group → straight in; several → picker.
   try {
-    const auth = await call('GET', '/api/auth');
-    me = auth.user.id;
-    isAdmin = !!auth.isAdmin;
-    $('loading').classList.add('hidden');
-    $('app').classList.remove('hidden');
-    await refresh();
+    const probe = await call('GET', '/api/groups');
+    myGroups = probe.groups || [];
+    if (probe.current) selectedGroupId = probe.current;
   } catch (e) {
-    // 403 → not a member
     $('loading').classList.add('hidden');
     $('denied').classList.remove('hidden');
+    return;
+  }
+
+  if (myGroups.length > 1 && !selectedGroupId) {
+    showGroupPicker(myGroups);
+  } else {
+    await startApp();
   }
 
   // Apply localized static labels.
@@ -1094,7 +1178,15 @@ async function init() {
     $('add-form').classList.add('hidden');
   });
 
-  // Admin button + panel (visible only to admins).
+  // Group switcher: re-open the picker.
+  $('switch-group').addEventListener('click', () => {
+    selectedGroupId = null;
+    localStorage.removeItem('samferdGroupId');
+    $('app').classList.add('hidden');
+    showGroupPicker(myGroups);
+  });
+
+  // Admin button + panel (visible only to admins of the selected group).
   if (isAdmin) {
     // Admins can create transport on behalf of a known user.
     $('on-behalf-label').classList.remove('hidden');
@@ -1113,6 +1205,7 @@ async function init() {
 
     $('toggle-admin').classList.remove('hidden');
     const adminToggle = $('toggle-admin');
+    adminToggle.textContent = `${t.admin} 🔒`;
     const adminPanel = $('admin-panel');
     adminToggle.addEventListener('click', () => {
       const hidden = adminPanel.classList.toggle('hidden');

@@ -201,6 +201,68 @@ body {
   font-size: 13px;
 }
 
+/* Group picker + group header */
+.group-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.group-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  padding: 12px;
+  border: 1px solid var(--tg-theme-section-separator-color, #ddd);
+  border-radius: 12px;
+  background: var(--tg-theme-secondary-bg-color, #f7f7f7);
+  color: var(--tg-theme-text-color, #000);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.group-photo {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.group-photo-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--tg-theme-secondary-bg-color, #eee);
+  font-size: 18px;
+}
+
+.group-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0 10px;
+}
+
+.group-header .group-name {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--tg-theme-hint-color, #888);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-lock {
+  font-size: 12px;
+}
+
 .full-badge {
   font-size: 13px;
   font-weight: 600;

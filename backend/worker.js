@@ -23,10 +23,8 @@ const FLIGHT_API_PROVIDER = () => env.FLIGHT_API_PROVIDER || '';
 const FLIGHT_API_KEY = () => env.FLIGHT_API_KEY || '';
 const RAPIDAPI_KEY = () => env.RAPIDAPI_KEY || '';
 
-// Telegram user ids with full admin (override) rights. Add more ids as needed.
-const ADMIN_IDS = new Set([
-  128294574, // Axel (the app owner)
-]);
+// Admin rights are NOT hardcoded: they are derived live from the user's
+// Telegram role in the selected group (creator/administrator).
 
 // CORS: the Mini App is served from Telegram's webview; allow any origin.
 const CORS = {
@@ -146,20 +144,59 @@ function statusAllows(member) {
   return allowed;
 }
 
-async function isAllowedMember(userId) {
-  // No caching: membership is checked live on every request. With this app's
-  // tiny user base the Bot API load is negligible, and it means access is
-  // revoked/granted immediately when someone leaves/joins a whitelisted group.
-  const groups = allowedGroups();
-  for (const chatId of groups) {
-    const member = await getMembership(userId, chatId);
-    console.log('[auth] getChatMember', chatId, 'status:', member.status, 'is_member:', member.is_member);
-    if (statusAllows(member)) return true;
-  }
-  return false;
+/** Is this Telegram role an app-admin in the group? */
+function statusIsAdmin(member) {
+  return member.status === 'creator' || member.status === 'administrator';
 }
 
-/** Resolve the authenticated member from a request, or null. */
+/**
+ * Resolve the user's memberships across all whitelisted groups.
+ * @returns {Promise<Array<{id:number, title:string, photoUrl:string|null, member:boolean, admin:boolean}>>}
+ */
+async function resolveGroups(userId) {
+  const groups = [];
+  for (const chatId of allowedGroups()) {
+    const member = await getMembership(userId, chatId);
+    const isMember = statusAllows(member);
+    if (!isMember) continue;
+    // Fetch group name + photo (best-effort; the app works without them).
+    let title = `Group ${chatId}`;
+    let photoUrl = null;
+    try {
+      const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN()}/getChat?chat_id=${chatId}`);
+      const body = await res.json();
+      if (body.ok && body.result) {
+        title = body.result.title || body.result.username || title;
+        photoUrl = body.result.photo?.big_file_id
+          ? null // file_id needs a getFile round-trip; handled below
+          : null;
+        // Resolve the photo file_id to a direct URL.
+        const fileId = body.result.photo?.big_file_id;
+        if (fileId) {
+          const fr = await fetch(`https://api.telegram.org/bot${BOT_TOKEN()}/getFile?file_id=${encodeURIComponent(fileId)}`);
+          const fb = await fr.json();
+          if (fb.ok && fb.result?.file_path) {
+            photoUrl = `https://api.telegram.org/file/bot${BOT_TOKEN()}/${fb.result.file_path}`;
+          }
+        }
+      }
+    } catch { /* keep defaults */ }
+    groups.push({
+      id: chatId,
+      title,
+      photoUrl,
+      member: true,
+      admin: statusIsAdmin(member),
+    });
+  }
+  return groups;
+}
+
+/**
+ * Auth for a group-scoped request. Returns { user, group, isAdmin } or null.
+ * The target group comes from the X-Group-Id header; the user must be a
+ * member of it. Admin rights are the user's Telegram role in that group.
+ */
 async function authUser(request) {
   const initData = request.headers.get('X-Init-Data') || '';
   const user = await validateInitData(initData, BOT_TOKEN());
@@ -167,21 +204,29 @@ async function authUser(request) {
     console.log('[auth] authUser failed at initData/is_bot stage');
     return null;
   }
-  if (!(await isAllowedMember(user.id))) {
-    console.log('[auth] authUser failed at membership stage for', user.id);
+
+  const groupId = Number(request.headers.get('X-Group-Id') || 0);
+  const groups = await resolveGroups(user.id);
+  if (!groups.length) {
+    console.log('[auth] user is not a member of any whitelisted group:', user.id);
     return null;
   }
-  // Cache the user's display info so drivers/admins can add them as car riders.
+
+  // Default to the first group when none specified (or invalid).
+  const group = groups.find((g) => g.id === groupId) || groups[0];
+
+  // Cache the user's display info so drivers/admins can add them as riders.
   await env.SAMFERD.put(`user:${user.id}`, JSON.stringify(userInfo(user)));
-  return user;
+
+  return { user, group, groups, isAdmin: group.admin };
 }
 
 // ---------------------------------------------------------------------------
-// Board storage (single JSON document in KV)
+// Board storage (one JSON document per group in KV)
 // ---------------------------------------------------------------------------
 
-async function loadBoard() {
-  const raw = await env.SAMFERD.get('board');
+async function loadBoard(groupId) {
+  const raw = await env.SAMFERD.get(`board:${groupId}`);
   const board = raw ? JSON.parse(raw) : {};
   return {
     nextId: board.nextId || 1,
@@ -190,8 +235,8 @@ async function loadBoard() {
   };
 }
 
-async function saveBoard(board) {
-  await env.SAMFERD.put('board', JSON.stringify(board));
+async function saveBoard(groupId, board) {
+  await env.SAMFERD.put(`board:${groupId}`, JSON.stringify(board));
 }
 
 function todayISO() {
@@ -220,10 +265,10 @@ function userInfo(u) {
 }
 
 /** Can this user manage (edit passengers / modify / delete) this car? */
-function canManageCar(car, user) {
+function canManageCar(car, user, isAdmin) {
   return car.driver.id === user.id
     || car.createdBy === user.id
-    || ADMIN_IDS.has(user.id);
+    || isAdmin === true;
 }
 
 // ---------------------------------------------------------------------------
@@ -381,19 +426,25 @@ async function handle(request) {
     return new Response(null, { status: 204, headers: CORS });
   }
 
-  // Auth gate for every API route.
-  const user = await authUser(request);
-  if (!user) {
-    return json({ ok: false, error: 'forbidden', message: 'You must be a member of the group.' }, 403);
+  // Auth gate for every API route. auth resolves the user + selected group.
+  const auth = await authUser(request);
+  if (!auth) {
+    return json({ ok: false, error: 'forbidden', message: 'You must be a member of a whitelisted group.' }, 403);
   }
+  const { user, group, groups, isAdmin } = auth;
 
-  const board = await loadBoard();
-  if (prunePast(board)) await saveBoard(board);
+  const board = await loadBoard(group.id);
+  if (prunePast(board)) await saveBoard(group.id, board);
   const findFlight = (id) => board.flights.find((f) => f.id === id);
 
   // ---- auth check ----------------------------------------------------------
   if (path === '/api/auth') {
-    return json({ ok: true, user: userInfo(user), isAdmin: ADMIN_IDS.has(user.id) });
+    return json({ ok: true, user: userInfo(user), isAdmin, group, groups });
+  }
+
+  // ---- available groups (for the group picker) -----------------------------
+  if (path === '/api/groups' && method === 'GET') {
+    return json({ ok: true, groups, current: group.id });
   }
 
   // ---- board ---------------------------------------------------------------
@@ -405,7 +456,7 @@ async function handle(request) {
     // Known users (for the driver's passenger picker). Only exposed to
     // drivers/admins; it's display info only (name/username).
     let known = [];
-    if (ADMIN_IDS.has(user.id) || (board.cars || []).some((c) => c.driver.id === user.id)) {
+    if (isAdmin || (board.cars || []).some((c) => c.driver.id === user.id)) {
       const keys = await env.SAMFERD.list({ prefix: 'user:' });
       for (const k of keys.keys) {
         try { known.push(JSON.parse(await env.SAMFERD.get(k.name))); } catch {}
@@ -413,7 +464,7 @@ async function handle(request) {
       known.sort((a, b) => String(a.name).localeCompare(String(b.name)));
     }
 
-    return json({ ok: true, flights, cars: board.cars, me: user.id, isAdmin: ADMIN_IDS.has(user.id), known });
+    return json({ ok: true, flights, cars: board.cars, me: user.id, isAdmin, known, group });
   }
 
   // ---- create flight -------------------------------------------------------
@@ -451,7 +502,7 @@ async function handle(request) {
       passengers: [],
     };
     board.flights.push(flight);
-    await saveBoard(board);
+    await saveBoard(group.id, board);
     return json({ ok: true, flight });
   }
 
@@ -482,7 +533,7 @@ async function handle(request) {
         return json({ ok: false, error: 'not_found', message: 'You are not on this flight.' }, 404);
       }
     }
-    await saveBoard(board);
+    await saveBoard(group.id, board);
     return json({ ok: true, flight });
   }
 
@@ -506,7 +557,7 @@ async function handle(request) {
     // Admins may create on behalf of someone else (e.g. a less tech-savvy
     // driver). The owner must be a known user; defaults to the creator.
     let owner = userInfo(user);
-    if (ADMIN_IDS.has(user.id) && Number(body.onBehalfId)) {
+    if (isAdmin && Number(body.onBehalfId)) {
       const known = await env.SAMFERD.get(`user:${Number(body.onBehalfId)}`);
       if (known) {
         try { owner = JSON.parse(known); } catch { /* keep creator */ }
@@ -527,7 +578,7 @@ async function handle(request) {
       riders: [],
     };
     board.cars.push(car);
-    await saveBoard(board);
+    await saveBoard(group.id, board);
     return json({ ok: true, car });
   }
 
@@ -538,7 +589,7 @@ async function handle(request) {
     const id = Number(cm[1]);
     const car = board.cars.find((c) => c.id === id);
     if (!car) return json({ ok: false, error: 'not_found', message: 'Car not found.' }, 404);
-    if (!canManageCar(car, user)) {
+    if (!canManageCar(car, user, isAdmin)) {
       return json({ ok: false, error: 'forbidden', message: 'Only the driver can manage passengers.' }, 403);
     }
 
@@ -572,7 +623,7 @@ async function handle(request) {
       }
     }
     car.riders = clean;
-    await saveBoard(board);
+    await saveBoard(group.id, board);
     return json({ ok: true, car });
   }
 
@@ -582,11 +633,11 @@ async function handle(request) {
     const id = Number(dm[1]);
     const car = board.cars.find((c) => c.id === id);
     if (!car) return json({ ok: false, error: 'not_found', message: 'Car not found.' }, 404);
-    if (!canManageCar(car, user)) {
+    if (!canManageCar(car, user, isAdmin)) {
       return json({ ok: false, error: 'forbidden', message: 'Only the driver can change this.' }, 403);
     }
     car.direction = car.direction === 'return' ? 'outbound' : 'return';
-    await saveBoard(board);
+    await saveBoard(group.id, board);
     return json({ ok: true, car });
   }
 
@@ -596,7 +647,7 @@ async function handle(request) {
     const id = Number(body.id);
     const car = board.cars.find((c) => c.id === id);
     if (!car) return json({ ok: false, error: 'not_found', message: 'Car not found.' }, 404);
-    if (!canManageCar(car, user)) {
+    if (!canManageCar(car, user, isAdmin)) {
       return json({ ok: false, error: 'forbidden', message: 'Only the driver can modify this car.' }, 403);
     }
     if ('date' in body) {
@@ -623,7 +674,7 @@ async function handle(request) {
       car.tripStatus = body.tripStatus;
     }
     if ('note' in body) car.note = String(body.note || '').slice(0, 200) || null;
-    await saveBoard(board);
+    await saveBoard(group.id, board);
     return json({ ok: true, car });
   }
 
@@ -633,7 +684,7 @@ async function handle(request) {
     const id = Number(sm[1]);
     const car = board.cars.find((c) => c.id === id);
     if (!car) return json({ ok: false, error: 'not_found', message: 'Car not found.' }, 404);
-    if (!canManageCar(car, user)) {
+    if (!canManageCar(car, user, isAdmin)) {
       return json({ ok: false, error: 'forbidden', message: 'Only the driver can change this.' }, 403);
     }
     const body = await request.json().catch(() => ({}));
@@ -641,7 +692,7 @@ async function handle(request) {
       return json({ ok: false, error: 'bad_status', message: 'Invalid status.' }, 400);
     }
     car.tripStatus = body.tripStatus;
-    await saveBoard(board);
+    await saveBoard(group.id, board);
     return json({ ok: true, car });
   }
 
@@ -651,11 +702,11 @@ async function handle(request) {
     const car = board.cars.find((c) => c.id === id);
     if (!car) return json({ ok: false, error: 'not_found', message: 'Car not found.' }, 404);
     // Creator (who may be an admin acting on behalf) OR admin may delete.
-    if (!canManageCar(car, user)) {
+    if (!canManageCar(car, user, isAdmin)) {
       return json({ ok: false, error: 'forbidden', message: 'Only the driver can delete this car.' }, 403);
     }
     board.cars = board.cars.filter((c) => c.id !== id);
-    await saveBoard(board);
+    await saveBoard(group.id, board);
     return json({ ok: true });
   }
 
@@ -665,17 +716,17 @@ async function handle(request) {
     const flight = findFlight(id);
     if (!flight) return json({ ok: false, error: 'not_found', message: 'Flight not found.' }, 404);
     // Creator OR admin may delete.
-    if (flight.createdBy !== user.id && !ADMIN_IDS.has(user.id)) {
+    if (flight.createdBy !== user.id && !isAdmin) {
       return json({ ok: false, error: 'forbidden', message: 'Only the creator can delete it.' }, 403);
     }
     board.flights = board.flights.filter((f) => f.id !== id);
-    await saveBoard(board);
+    await saveBoard(group.id, board);
     return json({ ok: true });
   }
 
   // ---- admin: edit flight info -------------------------------------------
   if (path === '/api/flights' && method === 'PATCH') {
-    if (!ADMIN_IDS.has(user.id)) {
+    if (!isAdmin) {
       return json({ ok: false, error: 'forbidden', message: 'Admin only.' }, 403);
     }
     const body = await request.json().catch(() => ({}));
@@ -702,7 +753,7 @@ async function handle(request) {
       if (f in body) flight[f] = body[f] ? String(body[f]) : null;
     }
 
-    await saveBoard(board);
+    await saveBoard(group.id, board);
     return json({ ok: true, flight });
   }
 

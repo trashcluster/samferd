@@ -97,6 +97,38 @@
       </div>
     </section>
 
+    <!-- Car editor (driver/admin only) -->
+    <section id="car-editor" class="panel form hidden">
+      <h2 id="car-editor-title">Modify transport</h2>
+      <input id="car-edit-id" type="hidden" />
+      <label>Date
+        <input id="car-edit-date" type="date" />
+      </label>
+      <label>Direction
+        <select id="car-edit-direction">
+          <option value="outbound">To the departure airport</option>
+          <option value="return">From the arrival airport</option>
+        </select>
+      </label>
+      <label>Total seats (including driver)
+        <input id="car-edit-seats" type="number" min="1" max="20" />
+      </label>
+      <label>Status
+        <select id="car-edit-status">
+          <option value="confirmed">Confirmed</option>
+          <option value="provisional">Provisional</option>
+          <option value="cancelled">Cancelled</option>
+        </select>
+      </label>
+      <label>Note (departure point / time)
+        <input id="car-edit-note" type="text" autocomplete="off" />
+      </label>
+      <div class="btn-row">
+        <button id="car-edit-save" class="btn primary">Save</button>
+        <button id="car-edit-close" class="btn">Close</button>
+      </div>
+    </section>
+
     <!-- Rider editor (driver/admin only) -->
     <section id="rider-editor" class="panel form hidden">
       <h2 id="rider-editor-title">Passengers</h2>

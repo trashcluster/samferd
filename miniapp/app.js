@@ -171,9 +171,10 @@ function renderDayTabs(sortedDays) {
   $('day-tabs').querySelectorAll('.day-tab').forEach((btn) => {
     btn.addEventListener('click', () => {
       selectedDay = btn.dataset.day;
-      // The passenger editor belongs to a car on a specific day; close it when
-      // switching days so it doesn't linger over unrelated content.
+      // The passenger/car editors belong to a car on a specific day; close
+      // them when switching days so they don't linger over unrelated content.
       closeRiderEditor();
+      closeCarEditor();
       renderDayTabs(sortedDays);
       renderDayPanel(selectedDay, allFlights, allCars);
     });
@@ -372,8 +373,7 @@ function renderCar(c) {
   const actions = isDriver || isAdmin
     ? [
         `<button class="btn small primary" data-act="edit-riders" data-id="${c.id}">Edit passengers</button>`,
-        `<button class="btn small" data-act="cycle-status" data-id="${c.id}">Status: ${escapeHtml(tripStatus)}</button>`,
-        `<button class="btn small" data-act="toggle-car-direction" data-id="${c.id}">⇄ Switch</button>`,
+        `<button class="btn small" data-act="edit-car" data-id="${c.id}">Modify</button>`,
         `<button class="btn small danger" data-act="del-car" data-id="${c.id}">Delete</button>`,
       ].join('')
     : '';
@@ -402,14 +402,49 @@ async function handleAction(act, id) {
     if (act === 'del-flight') await call('DELETE', '/api/flights', { id });
     if (act === 'del-car') await call('DELETE', '/api/cars', { id });
     if (act === 'toggle-car-direction') await call('POST', `/api/cars/${id}/direction`);
-    if (act === 'cycle-status') {
-      // Cycle: confirmed → provisional → cancelled → confirmed
-      const car = allCars.find((c) => c.id === id);
-      const order = ['confirmed', 'provisional', 'cancelled'];
-      const next = order[(order.indexOf(car?.tripStatus || 'confirmed') + 1) % order.length];
-      await call('POST', `/api/cars/${id}/status`, { tripStatus: next });
-    }
+    if (act === 'edit-car') { openCarEditor(id); return; }
     if (act === 'edit-riders') { openRiderEditor(id); return; }
+    await refresh();
+    if (tg) tg.HapticFeedback.notificationOccurred('success');
+  } catch (e) {
+    toast(e.message);
+  }
+}
+
+// --- Car editor (driver/admin only) -----------------------------------------
+
+function openCarEditor(carId) {
+  const car = allCars.find((c) => c.id === carId);
+  if (!car) return;
+  $('car-edit-id').value = car.id;
+  $('car-edit-date').value = car.date || '';
+  $('car-edit-direction').value = car.direction === 'return' ? 'return' : 'outbound';
+  $('car-edit-seats').value = car.freeSeats;
+  $('car-edit-status').value = car.tripStatus || 'confirmed';
+  $('car-edit-note').value = car.note || '';
+  $('car-editor').classList.remove('hidden');
+  $('car-editor').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function closeCarEditor() {
+  $('car-editor').classList.add('hidden');
+}
+
+async function saveCarEdits() {
+  const id = Number($('car-edit-id').value);
+  if (!id) return;
+  const body = {
+    id,
+    date: $('car-edit-date').value,
+    direction: $('car-edit-direction').value,
+    freeSeats: Number($('car-edit-seats').value),
+    tripStatus: $('car-edit-status').value,
+    note: $('car-edit-note').value.trim(),
+  };
+  try {
+    await call('PATCH', '/api/cars', body);
+    toast('Transport updated.');
+    closeCarEditor();
     await refresh();
     if (tg) tg.HapticFeedback.notificationOccurred('success');
   } catch (e) {
@@ -718,6 +753,8 @@ async function init() {
   $('save-riders').addEventListener('click', saveRiders);
   $('close-riders').addEventListener('click', closeRiderEditor);
   $('rider-search').addEventListener('input', (e) => renderRiderResults(e.target.value));
+  $('car-edit-save').addEventListener('click', saveCarEdits);
+  $('car-edit-close').addEventListener('click', closeCarEditor);
 }
 
 init();

@@ -569,6 +569,43 @@ async function handle(request) {
     return json({ ok: true, car });
   }
 
+  // Edit a car (driver or admin only): date, direction, seats, status, note.
+  if (path === '/api/cars' && method === 'PATCH') {
+    const body = await request.json().catch(() => ({}));
+    const id = Number(body.id);
+    const car = board.cars.find((c) => c.id === id);
+    if (!car) return json({ ok: false, error: 'not_found', message: 'Car not found.' }, 404);
+    if (car.driver.id !== user.id && !ADMIN_IDS.has(user.id)) {
+      return json({ ok: false, error: 'forbidden', message: 'Only the driver can modify this car.' }, 403);
+    }
+    if ('date' in body) {
+      const d = String(body.date || '');
+      if (d && !/^\d{4}-\d{2}-\d{2}$/.test(d)) {
+        return json({ ok: false, error: 'bad_date', message: 'Date must be YYYY-MM-DD.' }, 400);
+      }
+      if (d) car.date = d;
+    }
+    if ('direction' in body && ['outbound', 'return'].includes(body.direction)) {
+      car.direction = body.direction;
+    }
+    if ('freeSeats' in body) {
+      const seats = Math.max(1, Math.min(20, Number(body.freeSeats) || car.freeSeats));
+      if (seats < car.riders.length) {
+        return json({ ok: false, error: 'full', message: `Cannot set capacity below the ${car.riders.length} confirmed passenger(s).` }, 400);
+      }
+      car.freeSeats = seats;
+    }
+    if ('tripStatus' in body) {
+      if (!['confirmed', 'provisional', 'cancelled'].includes(body.tripStatus)) {
+        return json({ ok: false, error: 'bad_status', message: 'Invalid status.' }, 400);
+      }
+      car.tripStatus = body.tripStatus;
+    }
+    if ('note' in body) car.note = String(body.note || '').slice(0, 200) || null;
+    await saveBoard(board);
+    return json({ ok: true, car });
+  }
+
   // Set a car's trip status (driver or admin only).
   const sm = path.match(/^\/api\/cars\/(\d+)\/status$/);
   if (sm && method === 'POST') {

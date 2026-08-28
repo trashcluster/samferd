@@ -489,6 +489,9 @@ async function handle(request) {
     const freeSeats = Math.max(1, Math.min(20, Number(body.freeSeats) || 0));
     // Direction: 'outbound' = to the departure airport, 'return' = from the arrival airport.
     const direction = body.direction === 'return' ? 'return' : 'outbound';
+    // Mode of transport (car is the default for backwards compatibility).
+    const MODES = ['car', 'rental', 'train', 'bus', 'shuttle', 'taxi', 'pickup', 'other'];
+    const mode = MODES.includes(body.mode) ? body.mode : 'car';
     const date = String(body.date || '');
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
       return json({ ok: false, error: 'bad_date', message: 'Travel date must be YYYY-MM-DD.' }, 400);
@@ -496,6 +499,7 @@ async function handle(request) {
     const car = {
       id: board.nextId++,
       driver: userInfo(user),
+      mode,
       freeSeats,
       direction,
       date,

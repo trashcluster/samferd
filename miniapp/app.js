@@ -346,6 +346,18 @@ function renderFlight(f) {
     </div>`;
 }
 
+// Mode-of-transport labels/icons for transport cards.
+const MODE_LABELS = {
+  car: '🚗 Private car',
+  rental: '🚙 Rental car',
+  train: '🚆 Train',
+  bus: '🚌 Bus',
+  shuttle: '🚐 Shuttle',
+  taxi: '🚕 Taxi',
+  pickup: '🤝 Pickup',
+  other: '✈️ Transport',
+};
+
 function renderCar(c) {
   // Free seats are derived, never stored: capacity minus confirmed passengers.
   const remaining = Math.max(0, c.freeSeats - c.riders.length);
@@ -353,6 +365,7 @@ function renderCar(c) {
   const tripStatus = c.tripStatus || 'confirmed';
   const isCancelled = tripStatus === 'cancelled';
   const isFull = remaining <= 0;
+  const modeLabel = MODE_LABELS[c.mode] || MODE_LABELS.other;
 
   // Status badge: shows certainty at a glance.
   const statusBadge = {
@@ -381,7 +394,7 @@ function renderCar(c) {
   return `
     <div class="flight${isCancelled ? ' cancelled' : ''}">
       <div class="flight-head">
-        <span class="flight-number">🚗 ${escapeHtml(c.driver.name)}</span>
+        <span class="flight-number">${escapeHtml(modeLabel)} · ${escapeHtml(c.driver.name)}</span>
         ${seatsLine}
       </div>
       <div class="flight-badges">${statusBadge}${fullBadge}</div>
@@ -619,12 +632,13 @@ async function createCar() {
   const direction = $('car-direction').value;
   const date = $('car-date').value;
   const tripStatus = $('car-trip-status').value;
+  const mode = $('car-mode').value;
   if (!date) {
     toast('Pick a travel date for the car.');
     return;
   }
   try {
-    await call('POST', '/api/cars', { freeSeats, note, direction, date, tripStatus });
+    await call('POST', '/api/cars', { freeSeats, note, direction, date, tripStatus, mode });
     $('car-note').value = '';
     selectedDay = date; // show the newly added day
     await refresh();

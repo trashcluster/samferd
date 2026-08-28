@@ -44,7 +44,19 @@
       </label>
       <button id="create-flight" class="btn primary">Create flight</button>
 
-      <h2 class="mt">Offer a car</h2>
+      <h2 class="mt">Offer transport</h2>
+      <label>Mode of transport
+        <select id="car-mode">
+          <option value="car">🚗 Private car</option>
+          <option value="rental">🚙 Rental car</option>
+          <option value="train">🚆 Train</option>
+          <option value="bus">🚌 Bus</option>
+          <option value="shuttle">🚐 Shuttle</option>
+          <option value="taxi">🚕 Taxi</option>
+          <option value="pickup">🤝 Pickup (someone collecting you)</option>
+          <option value="other">✈️ Other</option>
+        </select>
+      </label>
       <label>Direction
         <select id="car-direction">
           <option value="outbound">To the departure airport</option>
@@ -66,7 +78,7 @@
       <label>Note (departure point / time)
         <input id="car-note" type="text" placeholder="e.g. city center, 05:00" autocomplete="off" />
       </label>
-      <button id="create-car" class="btn primary">Offer car</button>
+      <button id="create-car" class="btn primary">Offer transport</button>
     </section>
 
     <!-- Admin (visible only to admins) -->

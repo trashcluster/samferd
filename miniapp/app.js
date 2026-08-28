@@ -620,6 +620,8 @@ function renderDayPanel(day, flights, cars) {
 // Per-section Add buttons: open the add form showing ONLY the relevant
 // sub-form (flight or transport), with the direction pre-filled from the
 // section — no manual direction selection needed.
+let addCarDirection = 'outbound'; // set by the section's Add button
+
 function bindSectionAddButtons() {
   document.querySelectorAll('.section-add').forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -633,8 +635,8 @@ function bindSectionAddButtons() {
       $('add-car-form').classList.toggle('hidden', isFlight);
 
       if (!isFlight) {
-        // Pre-fill direction from the section; the field stays hidden.
-        $('car-direction').value = btn.dataset.addDirection || 'outbound';
+        // Direction comes from the section (no field in the form).
+        addCarDirection = btn.dataset.addDirection || 'outbound';
         // Default the travel date to the currently selected day.
         if (selectedDay) $('car-date').value = selectedDay;
       } else if (selectedDay) {
@@ -1077,7 +1079,7 @@ async function createFlight() {
 async function createCar() {
   const freeSeats = Number($('car-seats').value) || 3;
   const note = $('car-note').value.trim();
-  const direction = $('car-direction').value;
+  const direction = addCarDirection; // set by the section's Add button
   const date = $('car-date').value;
   const tripStatus = $('car-trip-status').value;
   const mode = $('car-mode').value;

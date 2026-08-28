@@ -219,6 +219,13 @@ function userInfo(u) {
   };
 }
 
+/** Can this user manage (edit passengers / modify / delete) this car? */
+function canManageCar(car, user) {
+  return car.driver.id === user.id
+    || car.createdBy === user.id
+    || ADMIN_IDS.has(user.id);
+}
+
 // ---------------------------------------------------------------------------
 // Flight-data enrichment (AirLabs) — cached per flight number + date
 // ---------------------------------------------------------------------------
@@ -496,9 +503,19 @@ async function handle(request) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
       return json({ ok: false, error: 'bad_date', message: 'Travel date must be YYYY-MM-DD.' }, 400);
     }
+    // Admins may create on behalf of someone else (e.g. a less tech-savvy
+    // driver). The owner must be a known user; defaults to the creator.
+    let owner = userInfo(user);
+    if (ADMIN_IDS.has(user.id) && Number(body.onBehalfId)) {
+      const known = await env.SAMFERD.get(`user:${Number(body.onBehalfId)}`);
+      if (known) {
+        try { owner = JSON.parse(known); } catch { /* keep creator */ }
+      }
+    }
     const car = {
       id: board.nextId++,
-      driver: userInfo(user),
+      driver: owner,
+      createdBy: user.id,
       mode,
       freeSeats,
       direction,
@@ -521,7 +538,7 @@ async function handle(request) {
     const id = Number(cm[1]);
     const car = board.cars.find((c) => c.id === id);
     if (!car) return json({ ok: false, error: 'not_found', message: 'Car not found.' }, 404);
-    if (car.driver.id !== user.id && !ADMIN_IDS.has(user.id)) {
+    if (!canManageCar(car, user)) {
       return json({ ok: false, error: 'forbidden', message: 'Only the driver can manage passengers.' }, 403);
     }
 
@@ -565,7 +582,7 @@ async function handle(request) {
     const id = Number(dm[1]);
     const car = board.cars.find((c) => c.id === id);
     if (!car) return json({ ok: false, error: 'not_found', message: 'Car not found.' }, 404);
-    if (car.driver.id !== user.id && !ADMIN_IDS.has(user.id)) {
+    if (!canManageCar(car, user)) {
       return json({ ok: false, error: 'forbidden', message: 'Only the driver can change this.' }, 403);
     }
     car.direction = car.direction === 'return' ? 'outbound' : 'return';
@@ -579,7 +596,7 @@ async function handle(request) {
     const id = Number(body.id);
     const car = board.cars.find((c) => c.id === id);
     if (!car) return json({ ok: false, error: 'not_found', message: 'Car not found.' }, 404);
-    if (car.driver.id !== user.id && !ADMIN_IDS.has(user.id)) {
+    if (!canManageCar(car, user)) {
       return json({ ok: false, error: 'forbidden', message: 'Only the driver can modify this car.' }, 403);
     }
     if ('date' in body) {
@@ -616,7 +633,7 @@ async function handle(request) {
     const id = Number(sm[1]);
     const car = board.cars.find((c) => c.id === id);
     if (!car) return json({ ok: false, error: 'not_found', message: 'Car not found.' }, 404);
-    if (car.driver.id !== user.id && !ADMIN_IDS.has(user.id)) {
+    if (!canManageCar(car, user)) {
       return json({ ok: false, error: 'forbidden', message: 'Only the driver can change this.' }, 403);
     }
     const body = await request.json().catch(() => ({}));
@@ -633,8 +650,8 @@ async function handle(request) {
     const id = Number(body.id);
     const car = board.cars.find((c) => c.id === id);
     if (!car) return json({ ok: false, error: 'not_found', message: 'Car not found.' }, 404);
-    // Creator OR admin may delete.
-    if (car.driver.id !== user.id && !ADMIN_IDS.has(user.id)) {
+    // Creator (who may be an admin acting on behalf) OR admin may delete.
+    if (!canManageCar(car, user)) {
       return json({ ok: false, error: 'forbidden', message: 'Only the driver can delete this car.' }, 403);
     }
     board.cars = board.cars.filter((c) => c.id !== id);

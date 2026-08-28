@@ -45,7 +45,7 @@
       <button id="create-flight" class="btn primary">Create flight</button>
 
       <h2 class="mt">Offer transport</h2>
-      <label>Mode of transport
+      <label id="car-mode-label">Mode of transport
         <select id="car-mode">
           <option value="car">🚗 Private car</option>
           <option value="rental">🚙 Rental car</option>
@@ -56,6 +56,9 @@
           <option value="pickup">🤝 Pickup (someone collecting you)</option>
           <option value="other">✈️ Other</option>
         </select>
+      </label>
+      <label id="on-behalf-label" class="hidden">On behalf of (driver/owner)
+        <select id="car-on-behalf"></select>
       </label>
       <label>Direction
         <select id="car-direction">

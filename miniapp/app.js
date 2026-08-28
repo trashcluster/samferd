@@ -391,6 +391,11 @@ function renderCar(c) {
       ].join('')
     : '';
 
+  // Show who created it when an admin added it on behalf of someone else.
+  const onBehalf = c.createdBy && c.createdBy !== c.driver.id
+    ? `<div class="flight-airline">added by admin</div>`
+    : '';
+
   return `
     <div class="flight${isCancelled ? ' cancelled' : ''}">
       <div class="flight-head">
@@ -399,6 +404,7 @@ function renderCar(c) {
       </div>
       <div class="flight-badges">${statusBadge}${fullBadge}</div>
       ${c.note ? `<div class="flight-route">${escapeHtml(c.note)}</div>` : ''}
+      ${onBehalf}
       <ul class="passengers">${riders}</ul>
       ${actions ? `<div class="flight-actions">${actions}</div>` : ''}
     </div>`;
@@ -633,12 +639,13 @@ async function createCar() {
   const date = $('car-date').value;
   const tripStatus = $('car-trip-status').value;
   const mode = $('car-mode').value;
+  const onBehalfId = isAdmin ? (Number($('car-on-behalf').value) || null) : null;
   if (!date) {
     toast('Pick a travel date for the car.');
     return;
   }
   try {
-    await call('POST', '/api/cars', { freeSeats, note, direction, date, tripStatus, mode });
+    await call('POST', '/api/cars', { freeSeats, note, direction, date, tripStatus, mode, onBehalfId });
     $('car-note').value = '';
     selectedDay = date; // show the newly added day
     await refresh();
@@ -751,6 +758,21 @@ async function init() {
 
   // Admin button + panel (visible only to admins).
   if (isAdmin) {
+    // Admins can create transport on behalf of a known user.
+    $('on-behalf-label').classList.remove('hidden');
+    const sel = $('car-on-behalf');
+    const fillOnBehalf = () => {
+      const current = sel.value;
+      sel.innerHTML = '<option value="">— myself —</option>'
+        + knownUsers.filter((u) => u.id !== me).map((u) =>
+          `<option value="${u.id}">${escapeHtml(u.name)}</option>`).join('');
+      if (current) sel.value = current;
+    };
+    fillOnBehalf();
+    // Keep the list fresh each time the board refreshes.
+    const origRefresh = refresh;
+    refresh = async function () { await origRefresh(); fillOnBehalf(); };
+
     $('toggle-admin').classList.remove('hidden');
     const adminToggle = $('toggle-admin');
     const adminPanel = $('admin-panel');

@@ -204,10 +204,6 @@ function renderDayPanel(day, flights, cars) {
   const carsOut = dayCars.filter((c) => c.direction !== 'return');
   const carsReturn = dayCars.filter((c) => c.direction === 'return');
 
-  $('board-cars-out').innerHTML =
-    '<h2 class="section-title">🚗 Transport to the airport</h2>' +
-    (carsOut.length ? carsOut.map(renderCar).join('') : '<div class="empty">No transport to the airport yet.</div>');
-
   // Sort flights by departure time (earliest first); flights without a known
   // time sort last, in creation order.
   dayFlights.sort((a, b) => {
@@ -216,14 +212,59 @@ function renderDayPanel(day, flights, cars) {
     return ta.localeCompare(tb) || a.id - b.id;
   });
 
-  $('board-flights').innerHTML =
-    '<h2 class="section-title">🛫 Flights</h2>' +
-    (dayFlights.length ? dayFlights.map(renderFlight).join('') : '<div class="empty">No flights this day.</div>');
+  // Each section is a collapsible card: the title row toggles the body.
+  // Sections with content start expanded; empty ones start collapsed.
+  const sections = [
+    {
+      key: 'cars-out',
+      title: '🚗 Transport to the airport',
+      count: carsOut.length,
+      body: carsOut.length ? carsOut.map(renderCar).join('') : '<div class="empty">No transport to the airport yet.</div>',
+    },
+    {
+      key: 'flights',
+      title: '🛫 Flights',
+      count: dayFlights.length,
+      body: dayFlights.length ? dayFlights.map(renderFlight).join('') : '<div class="empty">No flights this day.</div>',
+    },
+    {
+      key: 'cars-return',
+      title: '🚗 Transport from the arrival airport',
+      count: carsReturn.length,
+      body: carsReturn.length ? carsReturn.map(renderCar).join('') : '<div class="empty">No transport from the airport yet.</div>',
+    },
+  ];
 
-  $('board-cars-return').innerHTML =
-    '<h2 class="section-title">🚗 Transport from the arrival airport</h2>' +
-    (carsReturn.length ? carsReturn.map(renderCar).join('') : '<div class="empty">No transport from the airport yet.</div>');
+  for (const s of sections) {
+    const panel = $(`board-${s.key}`);
+    const open = s.count > 0;
+    panel.innerHTML = `
+      <button class="section-toggle" data-section="${s.key}" aria-expanded="${open}">
+        <span class="section-title">${s.title}</span>
+        <span class="section-meta">${s.count ? `${s.count}` : ''}<span class="chev">${open ? '▾' : '▸'}</span></span>
+      </button>
+      <div class="section-body${open ? '' : ' collapsed'}" data-body="${s.key}">${s.body}</div>`;
+  }
 
+  bindSectionToggles();
+  bindBoardActions();
+}
+
+// Toggle collapse/expand for a section card.
+function bindSectionToggles() {
+  document.querySelectorAll('.section-toggle').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const body = document.querySelector(`[data-body="${btn.dataset.section}"]`);
+      if (!body) return;
+      const collapsed = body.classList.toggle('collapsed');
+      btn.setAttribute('aria-expanded', String(!collapsed));
+      const chev = btn.querySelector('.chev');
+      if (chev) chev.textContent = collapsed ? '▸' : '▾';
+    });
+  });
+}
+
+function bindBoardActions() {
   document.querySelectorAll('[data-act]').forEach((btn) => {
     btn.addEventListener('click', () => handleAction(btn.dataset.act, Number(btn.dataset.id)));
   });

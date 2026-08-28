@@ -92,6 +92,41 @@ body {
   font-weight: 700;
 }
 
+/* Collapsible section cards */
+.section-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 0 0 10px;
+  cursor: pointer;
+  color: inherit;
+  text-align: left;
+}
+
+.section-toggle .section-title {
+  margin: 0;
+}
+
+.section-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--tg-theme-hint-color, #888);
+}
+
+.section-meta .chev {
+  font-size: 12px;
+}
+
+.section-body.collapsed {
+  display: none;
+}
+
 .full-badge {
   font-size: 13px;
   font-weight: 600;

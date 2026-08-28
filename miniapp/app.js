@@ -630,7 +630,10 @@ function renderDayPanel(day, flights, cars) {
   });
 
   // Each section is a collapsible card: the title row toggles the body.
-  // Sections with content start expanded; empty ones start collapsed.
+  // All sections start COLLAPSED, regardless of content — nothing stays
+  // open by default or keeps its open state across navigation. A section
+  // the user expands stays open only while they remain on this day/view;
+  // switching day or tab re-renders the panel and collapses everything.
   // Each title row carries its own Add button that pre-selects the form.
   const sections = [
     {
@@ -658,7 +661,7 @@ function renderDayPanel(day, flights, cars) {
 
   for (const s of sections) {
     const panel = $(`board-${s.key}`);
-    const open = s.count > 0;
+    const open = false; // always collapsed on (re)render
     panel.innerHTML = `
       <div class="section-head">
         <button class="section-toggle" data-section="${s.key}" aria-expanded="${open}">

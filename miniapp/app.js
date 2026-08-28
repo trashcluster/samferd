@@ -5,6 +5,192 @@
 
 const tg = window.Telegram?.WebApp;
 
+// --- i18n --------------------------------------------------------------------
+// UI language: French by default (the group's language), English fallback.
+// Telegram reports the user's language_code; we auto-localize when we have a
+// translation for it, otherwise we fall back to French.
+const STRINGS = {
+  fr: {
+    title: '✈️ Samferd',
+    loading: 'Chargement…',
+    membersOnly: '🔒 Réservé aux membres',
+    membersOnlyText: "Samferd est sur invitation. Vous devez être membre de notre groupe Telegram pour l'utiliser.",
+    askAdmin: "Demandez à un administrateur du groupe de vous inviter.",
+    openInTelegram: "Ouvrez cette application depuis Telegram.",
+    board: '🗓️ Tableau',
+    myJourney: '🧭 Mon trajet',
+    transportTo: '🚗 Transport vers l’aéroport',
+    flights: '🛫 Vols',
+    transportFrom: '🚗 Transport depuis l’aéroport d’arrivée',
+    noTransportTo: 'Pas encore de transport vers l’aéroport.',
+    noFlights: 'Aucun vol ce jour.',
+    noTransportFrom: 'Pas encore de transport depuis l’aéroport.',
+    add: '＋ Ajouter',
+    addFlightCar: '＋ Ajouter un vol / transport',
+    close: '－ Fermer',
+    addFlight: 'Ajouter un vol',
+    flightNumber: 'Numéro de vol',
+    departureDate: 'Date de départ',
+    createFlight: 'Créer le vol',
+    offerTransport: 'Proposer un transport',
+    mode: 'Mode de transport',
+    direction: 'Sens',
+    toAirport: "Vers l'aéroport de départ",
+    fromAirport: "Depuis l'aéroport d'arrivée",
+    travelDate: 'Date de trajet',
+    totalSeats: 'Places totales (conducteur inclus)',
+    statusLabel: 'Statut',
+    confirmed: 'Confirmé',
+    provisional: 'Provisoire',
+    cancelled: 'Annulé',
+    note: 'Note (point / heure de départ)',
+    offerTransportBtn: 'Proposer le transport',
+    admin: '⚙️ Admin',
+    closeAdmin: '⚙️ Fermer admin',
+    adminManage: 'Admin — gérer les vols',
+    editFlight: 'Modifier le vol',
+    saveFlight: 'Enregistrer le vol',
+    destCity: "Ville / aéroport d'arrivée",
+    depCity: 'Ville / aéroport de départ',
+    depTime: 'Heure de départ (HH:MM)',
+    passengers: 'Passagers',
+    passengerHint: 'Recherchez et cochez les personnes qui voyagent avec vous, ou saisissez un nom personnalisé. Les places se règlent avec le conducteur en dehors de l’app.',
+    searchPlaceholder: 'Rechercher ou ajouter un nom…',
+    typeLetter: 'Saisissez au moins une lettre pour rechercher.',
+    noMatches: 'Aucun résultat.',
+    addCustom: 'Ajouter',
+    selected: 'Sélectionnés',
+    noSelected: 'Aucun passager sélectionné.',
+    savePassengers: 'Enregistrer les passagers',
+    closeBtn: 'Fermer',
+    modify: 'Modifier',
+    editTransport: 'Modifier le transport',
+    save: 'Enregistrer',
+    delete: 'Supprimer',
+    editPassengers: 'Modifier les passagers',
+    addedByAdmin: 'ajouté par un admin',
+    noPassengers: '(aucun passager)',
+    seatsFree: 'place libre',
+    seatsFreePlural: 'places libres',
+    full: 'Complet',
+    youDrive: 'vous conduisez',
+    with: 'avec',
+    nothingPlanned: 'Rien de prévu pour l’instant.<br/>Rejoignez un vol ou un transport depuis le Tableau.',
+    routeNa: 'trajet inconnu',
+    today: "Aujourd'hui",
+    tomorrow: 'Demain',
+    pickDate: 'Choisissez une date de trajet.',
+    enterFlightAndDate: 'Saisissez un numéro de vol et une date.',
+    saved: 'Enregistré.',
+    transportUpdated: 'Transport mis à jour.',
+    flightUpdated: 'Vol mis à jour.',
+    noteSaved: 'Note enregistrée.',
+    pickFlight: 'Choisissez un vol.',
+    enterFlightId: 'Saisissez un identifiant de vol.',
+    onBehalf: 'Au nom de (conducteur / propriétaire)',
+    myself: '— moi-même —',
+    noOtherUsers: "Aucun autre utilisateur n'a encore ouvert l'app.",
+    you: 'vous',
+  },
+  en: {
+    title: '✈️ Samferd',
+    loading: 'Loading…',
+    membersOnly: '🔒 Members only',
+    membersOnlyText: 'Samferd is invite-only. You must be a member of our Telegram group to use it.',
+    askAdmin: 'Ask a group admin to invite you.',
+    openInTelegram: 'Open this app from inside Telegram.',
+    board: '🗓️ Board',
+    myJourney: '🧭 My journey',
+    transportTo: '🚗 Transport to the airport',
+    flights: '🛫 Flights',
+    transportFrom: '🚗 Transport from the arrival airport',
+    noTransportTo: 'No transport to the airport yet.',
+    noFlights: 'No flights this day.',
+    noTransportFrom: 'No transport from the airport yet.',
+    add: '＋ Add',
+    addFlightCar: '＋ Add flight / transport',
+    close: '－ Close',
+    addFlight: 'Add a flight',
+    flightNumber: 'Flight number',
+    departureDate: 'Departure date',
+    createFlight: 'Create flight',
+    offerTransport: 'Offer transport',
+    mode: 'Mode of transport',
+    direction: 'Direction',
+    toAirport: 'To the departure airport',
+    fromAirport: 'From the arrival airport',
+    travelDate: 'Travel date',
+    totalSeats: 'Total seats (including driver)',
+    statusLabel: 'Status',
+    confirmed: 'Confirmed',
+    provisional: 'Provisional',
+    cancelled: 'Cancelled',
+    note: 'Note (departure point / time)',
+    offerTransportBtn: 'Offer transport',
+    admin: '⚙️ Admin',
+    closeAdmin: '⚙️ Close admin',
+    adminManage: 'Admin — manage flights',
+    editFlight: 'Edit flight',
+    saveFlight: 'Save flight',
+    destCity: 'Destination city / airport',
+    depCity: 'Departure city / airport',
+    depTime: 'Departure time (HH:MM)',
+    passengers: 'Passengers',
+    passengerHint: 'Search and tick the people travelling with you, or type a custom name. Seats are arranged with the driver outside the app.',
+    searchPlaceholder: 'Search people or add a custom name…',
+    typeLetter: 'Type at least one letter to search.',
+    noMatches: 'No matches.',
+    addCustom: 'Add',
+    selected: 'Selected',
+    noSelected: 'No passengers selected.',
+    savePassengers: 'Save passengers',
+    closeBtn: 'Close',
+    modify: 'Modify',
+    editTransport: 'Modify transport',
+    save: 'Save',
+    delete: 'Delete',
+    editPassengers: 'Edit passengers',
+    addedByAdmin: 'added by admin',
+    noPassengers: '(no passengers yet)',
+    seatsFree: 'seat free',
+    seatsFreePlural: 'seats free',
+    full: 'Full',
+    youDrive: 'you drive',
+    with: 'with',
+    nothingPlanned: 'Nothing planned yet.<br/>Join a flight or transport from the Board tab.',
+    routeNa: 'route n/a',
+    today: 'Today',
+    tomorrow: 'Tomorrow',
+    pickDate: 'Pick a travel date for the car.',
+    enterFlightAndDate: 'Enter a flight number and date.',
+    saved: 'Saved.',
+    transportUpdated: 'Transport updated.',
+    flightUpdated: 'Flight updated.',
+    noteSaved: 'Note saved.',
+    pickFlight: 'Pick a flight first.',
+    enterFlightId: 'Enter a flight id.',
+    onBehalf: 'On behalf of (driver/owner)',
+    myself: '— myself —',
+    noOtherUsers: 'No other users have opened the app yet.',
+    you: 'you',
+  },
+};
+
+const userLang = (tg?.initDataUnsafe?.user?.language_code || 'fr').slice(0, 2);
+const t = STRINGS[userLang] || STRINGS.fr;
+
+// Mode-of-transport labels/icons for transport cards.
+const MODE_LABELS = {
+  car: '🚗 ' + (userLang === 'fr' ? 'Voiture perso' : 'Private car'),
+  rental: '🚙 ' + (userLang === 'fr' ? 'Voiture de location' : 'Rental car'),
+  train: '🚆 ' + (userLang === 'fr' ? 'Train' : 'Train'),
+  bus: '🚌 ' + (userLang === 'fr' ? 'Bus' : 'Bus'),
+  shuttle: '🚐 ' + (userLang === 'fr' ? 'Navette' : 'Shuttle'),
+  taxi: '🚕 ' + (userLang === 'fr' ? 'Taxi' : 'Taxi'),
+  pickup: '🤝 ' + (userLang === 'fr' ? 'Covoiturage' : 'Pickup'),
+  other: '✈️ ' + (userLang === 'fr' ? 'Transport' : 'Transport'),
+};
+
 // --- Fullscreen + safe-area (notch / home-indicator) handling ----------------
 // On iPhones with a notch, content must respect the safe-area insets. We drive
 // CSS variables from Telegram's own safeAreaInset / contentSafeAreaInset, which
@@ -188,11 +374,9 @@ function tabLabel(iso) {
   const [y, m, d] = iso.split('-').map(Number);
   const dt = new Date(Date.UTC(y, m - 1, d));
   const short = dt.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
-  if (iso === today) return 'Today';
-  // Tomorrow
-  const tm = new Date(Date.UTC(y, m - 1, d + 1)).toISOString().slice(0, 10) === today ? null : null;
+  if (iso === today) return t.today;
   const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
-  if (iso === tomorrow) return 'Tomorrow';
+  if (iso === tomorrow) return t.tomorrow;
   return short;
 }
 
@@ -219,24 +403,24 @@ function renderDayPanel(day, flights, cars) {
   const sections = [
     {
       key: 'cars-out',
-      title: '🚗 Transport to the airport',
+      title: t.transportTo,
       count: carsOut.length,
       add: { form: 'car', direction: 'outbound' },
-      body: carsOut.length ? carsOut.map(renderCar).join('') : '<div class="empty">No transport to the airport yet.</div>',
+      body: carsOut.length ? carsOut.map(renderCar).join('') : `<div class="empty">${t.noTransportTo}</div>`,
     },
     {
       key: 'flights',
-      title: '🛫 Flights',
+      title: t.flights,
       count: dayFlights.length,
       add: { form: 'flight' },
-      body: dayFlights.length ? dayFlights.map(renderFlight).join('') : '<div class="empty">No flights this day.</div>',
+      body: dayFlights.length ? dayFlights.map(renderFlight).join('') : `<div class="empty">${t.noFlights}</div>`,
     },
     {
       key: 'cars-return',
-      title: '🚗 Transport from the arrival airport',
+      title: t.transportFrom,
       count: carsReturn.length,
       add: { form: 'car', direction: 'return' },
-      body: carsReturn.length ? carsReturn.map(renderCar).join('') : '<div class="empty">No transport from the airport yet.</div>',
+      body: carsReturn.length ? carsReturn.map(renderCar).join('') : `<div class="empty">${t.noTransportFrom}</div>`,
     },
   ];
 
@@ -249,7 +433,7 @@ function renderDayPanel(day, flights, cars) {
           <span class="section-title">${s.title}</span>
           <span class="section-meta">${s.count ? `${s.count}` : ''}<span class="chev">${open ? '▾' : '▸'}</span></span>
         </button>
-        <button class="btn small section-add" data-add-form="${s.add.form}"${s.add.direction ? ` data-add-direction="${s.add.direction}"` : ''}>＋ Add</button>
+        <button class="btn small section-add" data-add-form="${s.add.form}"${s.add.direction ? ` data-add-direction="${s.add.direction}"` : ''}>${t.add}</button>
       </div>
       <div class="section-body${open ? '' : ' collapsed'}" data-body="${s.key}">${s.body}</div>`;
   }
@@ -336,7 +520,7 @@ function renderJourney() {
       add(f.departureDate, {
         icon: '🛫',
         main: `${f.flightNumber}${f.departureTime ? ` · ${f.departureTime}` : ''}`,
-        sub: f.origin && f.destination ? `${f.origin} → ${f.destination}` : 'route n/a',
+        sub: f.origin && f.destination ? `${f.origin} → ${f.destination}` : t.routeNa,
         ok: true,
       });
     }
@@ -350,8 +534,8 @@ function renderJourney() {
     const status = c.tripStatus === 'cancelled' ? 'cancelled'
       : c.tripStatus === 'provisional' ? 'provisional' : 'confirmed';
     add(c.date, {
-      icon: driving ? '🚗' : '🚗',
-      main: driving ? `${mode} — you drive` : `${mode} with ${c.driver.name}`,
+      icon: '🚗',
+      main: driving ? `${mode} — ${t.youDrive}` : `${mode} ${t.with} ${c.driver.name}`,
       sub: c.note || '',
       ok: status === 'confirmed',
       warn: status === 'provisional',
@@ -361,7 +545,7 @@ function renderJourney() {
 
   const days = [...byDay.keys()].sort();
   if (!days.length) {
-    box.innerHTML = '<section class="panel"><div class="empty">Nothing planned yet.<br/>Join a flight or transport from the Board tab.</div></section>';
+    box.innerHTML = `<section class="panel"><div class="empty">${t.nothingPlanned}</div></section>`;
     return;
   }
 
@@ -373,7 +557,7 @@ function renderJourney() {
           <span>${escapeHtml(e.main)}</span>
           ${e.sub ? `<span class="journey-sub">${escapeHtml(e.sub)}</span>` : ''}
         </span>
-        <span class="badge ${e.bad ? 'bad' : e.warn ? 'warn' : 'ok'}">${e.bad ? 'cancelled' : e.warn ? 'provisional' : 'confirmed'}</span>
+        <span class="badge ${e.bad ? 'bad' : e.warn ? 'warn' : 'ok'}">${e.bad ? t.cancelled : e.warn ? t.provisional : t.confirmed}</span>
       </div>`).join('');
     return `
       <section class="panel">
@@ -386,7 +570,7 @@ function renderJourney() {
 function renderFlight(f) {
   const route = f.origin && f.destination
     ? `<span class="route-origin">${escapeHtml(f.origin)}</span> → <span class="route-dest">${escapeHtml(f.destination)}</span>`
-    : '<span class="route-na">route n/a</span>';
+    : `<span class="route-na">${t.routeNa}</span>`;
   const status = f.status ? ` · ${escapeHtml(f.status)}` : '';
 
   const dateLine = formatDate(f.departureDate);
@@ -405,14 +589,14 @@ function renderFlight(f) {
 
   const people = f.passengers.length
     ? f.passengers.map((p) => `<li><span>${escapeHtml(p.name)}</span></li>`).join('')
-    : '<li class="empty">(no passengers yet)</li>';
+    : `<li class="empty">${t.noPassengers}</li>`;
 
   const actions = [
     onFlight
-      ? `<button class="btn small" data-act="leave-flight" data-id="${f.id}">Leave</button>`
-      : `<button class="btn small primary" data-act="join-flight" data-id="${f.id}">Join</button>`,
+      ? `<button class="btn small" data-act="leave-flight" data-id="${f.id}">${t.closeBtn === 'Fermer' ? 'Quitter' : 'Leave'}</button>`
+      : `<button class="btn small primary" data-act="join-flight" data-id="${f.id}">${t.closeBtn === 'Fermer' ? 'Rejoindre' : 'Join'}</button>`,
     isCreator
-      ? `<button class="btn small danger" data-act="del-flight" data-id="${f.id}">Delete</button>`
+      ? `<button class="btn small danger" data-act="del-flight" data-id="${f.id}">${t.delete}</button>`
       : '',
   ].join('');
 
@@ -429,17 +613,8 @@ function renderFlight(f) {
     </div>`;
 }
 
-// Mode-of-transport labels/icons for transport cards.
-const MODE_LABELS = {
-  car: '🚗 Private car',
-  rental: '🚙 Rental car',
-  train: '🚆 Train',
-  bus: '🚌 Bus',
-  shuttle: '🚐 Shuttle',
-  taxi: '🚕 Taxi',
-  pickup: '🤝 Pickup',
-  other: '✈️ Transport',
-};
+// Mode-of-transport labels/icons for transport cards (i18n-aware, see top).
+const MODE_LABELS_UNUSED = null;
 
 function renderCar(c) {
   // Free seats are derived, never stored: capacity minus confirmed passengers.
@@ -452,31 +627,31 @@ function renderCar(c) {
 
   // Status badge: shows certainty at a glance.
   const statusBadge = {
-    confirmed: '<span class="badge ok">Confirmed</span>',
-    provisional: '<span class="badge warn">Provisional</span>',
-    cancelled: '<span class="badge bad">Cancelled</span>',
+    confirmed: `<span class="badge ok">${t.confirmed}</span>`,
+    provisional: `<span class="badge warn">${t.provisional}</span>`,
+    cancelled: `<span class="badge bad">${t.cancelled}</span>`,
   }[tripStatus] || '';
-  const fullBadge = isFull && !isCancelled ? '<span class="badge bad">Full</span>' : '';
+  const fullBadge = isFull && !isCancelled ? `<span class="badge bad">${t.full}</span>` : '';
   const seatsLine = isCancelled
     ? ''
-    : `<span class="flight-date">${remaining} of ${c.freeSeats} seat${c.freeSeats === 1 ? '' : 's'} free</span>`;
+    : `<span class="flight-date">${remaining} ${remaining === 1 ? t.seatsFree : t.seatsFreePlural}</span>`;
 
   // Riders are managed by the driver only — no self-registration.
   const riders = c.riders.length
     ? c.riders.map((r) => `<li><span>${escapeHtml(r.name)}</span></li>`).join('')
-    : '<li class="empty">(no passengers yet)</li>';
+    : `<li class="empty">${t.noPassengers}</li>`;
 
   const actions = isDriver || isAdmin
     ? [
-        `<button class="btn small primary" data-act="edit-riders" data-id="${c.id}">Edit passengers</button>`,
-        `<button class="btn small" data-act="edit-car" data-id="${c.id}">Modify</button>`,
-        `<button class="btn small danger" data-act="del-car" data-id="${c.id}">Delete</button>`,
+        `<button class="btn small primary" data-act="edit-riders" data-id="${c.id}">${t.editPassengers}</button>`,
+        `<button class="btn small" data-act="edit-car" data-id="${c.id}">${t.modify}</button>`,
+        `<button class="btn small danger" data-act="del-car" data-id="${c.id}">${t.delete}</button>`,
       ].join('')
     : '';
 
   // Show who created it when an admin added it on behalf of someone else.
   const onBehalf = c.createdBy && c.createdBy !== c.driver.id
-    ? `<div class="flight-airline">added by admin</div>`
+    ? `<div class="flight-airline">${t.addedByAdmin}</div>`
     : '';
 
   return `
@@ -545,7 +720,7 @@ async function saveCarEdits() {
   };
   try {
     await call('PATCH', '/api/cars', body);
-    toast('Transport updated.');
+    toast(t.transportUpdated);
     closeCarEditor();
     await refresh();
     if (tg) tg.HapticFeedback.notificationOccurred('success');
@@ -584,7 +759,7 @@ function renderRiderResults(query) {
   const box = $('rider-search-results');
 
   if (q.length < 1) {
-    box.innerHTML = '<div class="empty">Type at least one letter to search.</div>';
+    box.innerHTML = `<div class="empty">${t.typeLetter}</div>`;
     return;
   }
 
@@ -603,7 +778,7 @@ function renderRiderResults(query) {
     return `
       <button class="rider-row${sel ? ' selected' : ''}" data-pick-id="${u.id}">
         <span>${escapeHtml(u.name)}</span>
-        <span class="rider-action">${sel ? '✓ remove' : '+ add'}</span>
+        <span class="rider-action">${sel ? '✓' : '+ ' + t.addCustom}</span>
       </button>`;
   }).join('');
 
@@ -611,12 +786,12 @@ function renderRiderResults(query) {
   if (!exactKnown && !alreadySelected) {
     html += `
       <button class="rider-row custom" data-pick-name="${escapeHtml(query.trim())}">
-        <span>➕ Add “${escapeHtml(query.trim())}”</span>
-        <span class="rider-action">custom</span>
+        <span>➕ ${t.addCustom} “${escapeHtml(query.trim())}”</span>
+        <span class="rider-action">${t.addCustom}</span>
       </button>`;
   }
 
-  box.innerHTML = html || '<div class="empty">No matches.</div>';
+  box.innerHTML = html || `<div class="empty">${t.noMatches}</div>`;
 
   box.querySelectorAll('[data-pick-id]').forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -652,7 +827,7 @@ function renderRiderSelected() {
           <span>${escapeHtml(r.name)}</span>
           <span class="rider-action">✕</span>
         </button>`).join('')
-    : '<div class="empty">No passengers selected.</div>';
+    : `<div class="empty">${t.noSelected}</div>`;
 
   box.querySelectorAll('[data-remove]').forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -674,7 +849,7 @@ async function saveRiders() {
   const riders = riderSelection.map((r) => ({ id: r.id ?? null, name: r.name }));
   try {
     await call('POST', `/api/cars/${riderCarId}/riders`, { riders });
-    toast('Passengers saved.');
+    toast(t.saved);
     $('rider-editor').classList.add('hidden');
     riderCarId = null;
     await refresh();
@@ -700,7 +875,7 @@ async function createFlight() {
   const flightNumber = $('flight-number').value.trim();
   const departureDate = $('departure-date').value;
   if (!flightNumber || !departureDate) {
-    toast('Enter a flight number and date.');
+    toast(t.enterFlightAndDate);
     return;
   }
   try {
@@ -724,7 +899,7 @@ async function createCar() {
   const mode = $('car-mode').value;
   const onBehalfId = isAdmin ? (Number($('car-on-behalf').value) || null) : null;
   if (!date) {
-    toast('Pick a travel date for the car.');
+    toast(t.pickDate);
     return;
   }
   try {
@@ -782,7 +957,7 @@ function openAdminEditor(id) {
 async function adminSaveFlight() {
   const id = Number($('admin-flight-id').value);
   if (!id) {
-    toast('Pick a flight first.');
+    toast(t.pickFlight);
     return;
   }
   const body = { id };
@@ -798,7 +973,7 @@ async function adminSaveFlight() {
   if (departureTime) body.departureTime = departureTime;
   try {
     await call('PATCH', '/api/flights', body);
-    toast('Flight updated.');
+    toast(t.flightUpdated);
     $('admin-editor').classList.add('hidden');
     await refresh();
     if (tg) tg.HapticFeedback.notificationOccurred('success');
@@ -811,10 +986,84 @@ async function adminSaveFlight() {
 // Bootstrap
 // ---------------------------------------------------------------------------
 
+// Apply localized labels to the static HTML (labels, buttons, headings).
+function applyStaticI18n() {
+  document.title = t.title;
+  document.querySelector('.topbar h1').textContent = t.title;
+  $('loading').textContent = t.loading;
+  document.querySelector('#denied h2').textContent = t.membersOnly;
+  document.querySelector('#denied p').textContent = t.membersOnlyText;
+  document.querySelector('#denied .empty').textContent = t.askAdmin;
+  $('view-board').textContent = t.board;
+  $('view-journey').textContent = t.myJourney;
+  $('toggle-add').textContent = t.addFlightCar;
+  document.querySelector('#add-form h2').textContent = t.addFlight;
+  const labels = document.querySelectorAll('#add-form label');
+  // Order: flight number, departure date, mode, on-behalf, direction, date, status, seats, note
+  if (labels[0]) labels[0].firstChild.textContent = t.flightNumber;
+  if (labels[1]) labels[1].firstChild.textContent = t.departureDate;
+  if (labels[2]) labels[2].firstChild.textContent = t.mode;
+  if (labels[3]) labels[3].firstChild.textContent = t.onBehalf;
+  if (labels[4]) labels[4].firstChild.textContent = t.direction;
+  if (labels[5]) labels[5].firstChild.textContent = t.travelDate;
+  if (labels[6]) labels[6].firstChild.textContent = t.statusLabel;
+  if (labels[7]) labels[7].firstChild.textContent = t.totalSeats;
+  if (labels[8]) labels[8].firstChild.textContent = t.note;
+  $('create-flight').textContent = t.createFlight;
+  $('create-car').textContent = t.offerTransportBtn;
+  const dirSel = $('car-direction');
+  if (dirSel) {
+    dirSel.options[0].textContent = t.toAirport;
+    dirSel.options[1].textContent = t.fromAirport;
+  }
+  const statusSel = $('car-trip-status');
+  if (statusSel) {
+    statusSel.options[0].textContent = t.confirmed;
+    statusSel.options[1].textContent = t.provisional;
+  }
+  $('toggle-admin').textContent = t.admin;
+  document.querySelector('#admin-panel h2').textContent = t.adminManage;
+  document.querySelector('#admin-editor h2').textContent = t.editFlight;
+  const adminLabels = document.querySelectorAll('#admin-editor label');
+  if (adminLabels[0]) adminLabels[0].firstChild.textContent = t.flightNumber;
+  if (adminLabels[1]) adminLabels[1].firstChild.textContent = t.departureDate;
+  if (adminLabels[2]) adminLabels[2].firstChild.textContent = t.depCity;
+  if (adminLabels[3]) adminLabels[3].firstChild.textContent = t.destCity;
+  if (adminLabels[4]) adminLabels[4].firstChild.textContent = t.depTime;
+  $('admin-save-flight').textContent = t.saveFlight;
+  document.querySelector('#rider-editor h2').textContent = t.passengers;
+  document.querySelector('#rider-editor .hint').textContent = t.passengerHint;
+  $('rider-search').placeholder = t.searchPlaceholder;
+  const selHeading = document.querySelector('#rider-editor h2.mt');
+  if (selHeading) selHeading.innerHTML = `${t.selected} (<span id="rider-count">0</span>)`;
+  $('save-riders').textContent = t.savePassengers;
+  $('close-riders').textContent = t.closeBtn;
+  document.querySelector('#car-editor h2').textContent = t.editTransport;
+  const carLabels = document.querySelectorAll('#car-editor label');
+  if (carLabels[0]) carLabels[0].firstChild.textContent = t.travelDate;
+  if (carLabels[1]) carLabels[1].firstChild.textContent = t.direction;
+  if (carLabels[2]) carLabels[2].firstChild.textContent = t.totalSeats;
+  if (carLabels[3]) carLabels[3].firstChild.textContent = t.statusLabel;
+  if (carLabels[4]) carLabels[4].firstChild.textContent = t.note;
+  $('car-edit-save').textContent = t.save;
+  $('car-edit-close').textContent = t.closeBtn;
+  const carDirSel = $('car-edit-direction');
+  if (carDirSel) {
+    carDirSel.options[0].textContent = t.toAirport;
+    carDirSel.options[1].textContent = t.fromAirport;
+  }
+  const carStatusSel = $('car-edit-status');
+  if (carStatusSel) {
+    carStatusSel.options[0].textContent = t.confirmed;
+    carStatusSel.options[1].textContent = t.provisional;
+    carStatusSel.options[2].textContent = t.cancelled;
+  }
+}
+
 async function init() {
   // Telegram WebApp is required for identity. Allow a fallback note for web preview.
   if (!tg) {
-    $('loading').textContent = 'Open this app from inside Telegram.';
+    $('loading').textContent = t.openInTelegram;
     return;
   }
 
@@ -831,12 +1080,15 @@ async function init() {
     $('denied').classList.remove('hidden');
   }
 
+  // Apply localized static labels.
+  applyStaticI18n();
+
   // Toggle the add form.
   const toggle = $('toggle-add');
   const addForm = $('add-form');
   toggle.addEventListener('click', () => {
     const hidden = addForm.classList.toggle('hidden');
-    toggle.textContent = hidden ? '＋ Add flight / car' : '－ Close';
+    toggle.textContent = hidden ? t.addFlightCar : t.close;
   });
 
   // Admin button + panel (visible only to admins).
@@ -846,7 +1098,7 @@ async function init() {
     const sel = $('car-on-behalf');
     const fillOnBehalf = () => {
       const current = sel.value;
-      sel.innerHTML = '<option value="">— myself —</option>'
+      sel.innerHTML = `<option value="">${t.myself}</option>`
         + knownUsers.filter((u) => u.id !== me).map((u) =>
           `<option value="${u.id}">${escapeHtml(u.name)}</option>`).join('');
       if (current) sel.value = current;
@@ -861,7 +1113,7 @@ async function init() {
     const adminPanel = $('admin-panel');
     adminToggle.addEventListener('click', () => {
       const hidden = adminPanel.classList.toggle('hidden');
-      adminToggle.textContent = hidden ? '⚙️ Admin' : '⚙️ Close admin';
+      adminToggle.textContent = hidden ? t.admin : t.closeAdmin;
     });
     $('admin-save-flight').addEventListener('click', adminSaveFlight);
   }

@@ -198,6 +198,29 @@ body {
   margin-top: 2px;
 }
 
+/* Trip status badges */
+.badge {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  margin-left: 4px;
+}
+
+.badge.ok { background: #2e7d32; color: #fff; }
+.badge.warn { background: #f9a825; color: #000; }
+.badge.bad { background: var(--tg-theme-destructive-text-color, #e53935); color: #fff; }
+
+.flight.cancelled {
+  opacity: 0.55;
+}
+
+.flight.cancelled .flight-number,
+.flight.cancelled .flight-route {
+  text-decoration: line-through;
+}
+
 .passengers {
   margin: 8px 0 0;
   padding: 0;

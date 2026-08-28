@@ -348,33 +348,41 @@ function renderFlight(f) {
 function renderCar(c) {
   const remaining = c.freeSeats - c.riders.length;
   const isDriver = c.driver.id === me;
+  const tripStatus = c.tripStatus || 'confirmed';
+  const isCancelled = tripStatus === 'cancelled';
+  const isFull = remaining <= 0;
+
+  // Status badge: shows certainty at a glance.
+  const statusBadge = {
+    confirmed: '<span class="badge ok">Confirmed</span>',
+    provisional: '<span class="badge warn">Provisional</span>',
+    cancelled: '<span class="badge bad">Cancelled</span>',
+  }[tripStatus] || '';
+  const fullBadge = isFull && !isCancelled ? '<span class="badge bad">Full</span>' : '';
 
   // Riders are managed by the driver only — no self-registration.
   const riders = c.riders.length
     ? c.riders.map((r) => `<li><span>${escapeHtml(r.name)}</span></li>`).join('')
     : '<li class="empty">(no passengers yet)</li>';
 
-  const actions = [
-    isDriver
-      ? `<button class="btn small primary" data-act="edit-riders" data-id="${c.id}">Edit passengers</button>`
-      : '',
-    isDriver
-      ? `<button class="btn small danger" data-act="del-car" data-id="${c.id}">Delete</button>`
-      : '',
-    isDriver
-      ? `<button class="btn small" data-act="toggle-car-direction" data-id="${c.id}">⇄ Switch</button>`
-      : '',
-  ].join('');
+  const actions = isDriver || isAdmin
+    ? [
+        `<button class="btn small primary" data-act="edit-riders" data-id="${c.id}">Edit passengers</button>`,
+        `<button class="btn small" data-act="cycle-status" data-id="${c.id}">Status: ${escapeHtml(tripStatus)}</button>`,
+        `<button class="btn small" data-act="toggle-car-direction" data-id="${c.id}">⇄ Switch</button>`,
+        `<button class="btn small danger" data-act="del-car" data-id="${c.id}">Delete</button>`,
+      ].join('')
+    : '';
 
   return `
-    <div class="flight">
+    <div class="flight${isCancelled ? ' cancelled' : ''}">
       <div class="flight-head">
         <span class="flight-number">🚗 ${escapeHtml(c.driver.name)}</span>
-        <span class="flight-date">${remaining} free seat${remaining === 1 ? '' : 's'}</span>
+        <span class="flight-date">${statusBadge}${fullBadge}</span>
       </div>
       ${c.note ? `<div class="flight-route">${escapeHtml(c.note)}</div>` : ''}
       <ul class="passengers">${riders}</ul>
-      <div class="flight-actions">${actions}</div>
+      ${actions ? `<div class="flight-actions">${actions}</div>` : ''}
     </div>`;
 }
 
@@ -389,6 +397,13 @@ async function handleAction(act, id) {
     if (act === 'del-flight') await call('DELETE', '/api/flights', { id });
     if (act === 'del-car') await call('DELETE', '/api/cars', { id });
     if (act === 'toggle-car-direction') await call('POST', `/api/cars/${id}/direction`);
+    if (act === 'cycle-status') {
+      // Cycle: confirmed → provisional → cancelled → confirmed
+      const car = allCars.find((c) => c.id === id);
+      const order = ['confirmed', 'provisional', 'cancelled'];
+      const next = order[(order.indexOf(car?.tripStatus || 'confirmed') + 1) % order.length];
+      await call('POST', `/api/cars/${id}/status`, { tripStatus: next });
+    }
     if (act === 'edit-riders') { openRiderEditor(id); return; }
     await refresh();
     if (tg) tg.HapticFeedback.notificationOccurred('success');
@@ -563,12 +578,13 @@ async function createCar() {
   const note = $('car-note').value.trim();
   const direction = $('car-direction').value;
   const date = $('car-date').value;
+  const tripStatus = $('car-trip-status').value;
   if (!date) {
     toast('Pick a travel date for the car.');
     return;
   }
   try {
-    await call('POST', '/api/cars', { freeSeats, note, direction, date });
+    await call('POST', '/api/cars', { freeSeats, note, direction, date, tripStatus });
     $('car-note').value = '';
     selectedDay = date; // show the newly added day
     await refresh();

@@ -500,6 +500,9 @@ async function handle(request) {
       direction,
       date,
       note: String(body.note || '').slice(0, 200) || null,
+      // confirmed | provisional | cancelled (full is derived from seats)
+      tripStatus: ['confirmed', 'provisional', 'cancelled'].includes(body.tripStatus)
+        ? body.tripStatus : 'confirmed',
       riders: [],
     };
     board.cars.push(car);
@@ -562,6 +565,24 @@ async function handle(request) {
       return json({ ok: false, error: 'forbidden', message: 'Only the driver can change this.' }, 403);
     }
     car.direction = car.direction === 'return' ? 'outbound' : 'return';
+    await saveBoard(board);
+    return json({ ok: true, car });
+  }
+
+  // Set a car's trip status (driver or admin only).
+  const sm = path.match(/^\/api\/cars\/(\d+)\/status$/);
+  if (sm && method === 'POST') {
+    const id = Number(sm[1]);
+    const car = board.cars.find((c) => c.id === id);
+    if (!car) return json({ ok: false, error: 'not_found', message: 'Car not found.' }, 404);
+    if (car.driver.id !== user.id && !ADMIN_IDS.has(user.id)) {
+      return json({ ok: false, error: 'forbidden', message: 'Only the driver can change this.' }, 403);
+    }
+    const body = await request.json().catch(() => ({}));
+    if (!['confirmed', 'provisional', 'cancelled'].includes(body.tripStatus)) {
+      return json({ ok: false, error: 'bad_status', message: 'Invalid status.' }, 400);
+    }
+    car.tripStatus = body.tripStatus;
     await saveBoard(board);
     return json({ ok: true, car });
   }

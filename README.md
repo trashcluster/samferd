@@ -1,46 +1,52 @@
-# Samferd — shared flight board (Telegram Mini App)
+# Samferd — group travel coordination (Telegram Mini App)
 
-**Samferd** is a Telegram Mini App that lets a group keep one shared, always-in-sync
-board of everyone's upcoming flights. Members add their flight (number + departure
-date), the board shows everyone read-only, and each person can set their own note.
+**Samferd** is a Telegram Mini App that lets a group coordinate travel to/from an
+airport: a shared board of upcoming **flights** and **transport** (cars, trains,
+shuttles…), organized by day, restricted to members of whitelisted Telegram groups.
 
 All interaction happens inside the Mini App. The bot itself is **not interactive** —
 it exists only to host the Mini App and to authenticate members.
 
 ---
 
-## What it does
+## Features
 
-- **Members only** — every request is validated against your group membership,
-  server-side, using Telegram's `initData` HMAC check + `getChatMember`.
-- **Create flights** — flight number + departure date, from inside the app.
-- **Join / leave** — add or remove yourself on any flight.
-- **Your own note** — a short note next to your name (e.g. "window seat please").
-- **Shared read-only board** — everyone sees the same synced list.
-- **Optional auto-enrichment** — see below.
+- **Members only** — every request is validated server-side: Telegram `initData`
+  HMAC check + live `getChatMember` lookup against a **whitelist of groups**
+  (comma-separated `GROUP_ID`; membership in any of them grants access).
+- **Day tabs** — one tab per travel day, soonest upcoming first; past days
+  disappear automatically (planning only, no archive).
+- **Three sections per day** — *Transport to the airport*, *Flights*,
+  *Transport from the arrival airport* — each collapsible, with its own Add button.
+- **Flights** — enter just a flight number + date; the schedule is auto-fetched
+  (departure/arrival airports, times, terminal, gate, airline) via
+  [AeroDataBox](https://www.aerodatabox.com/) and cached. Sorted by departure time.
+- **Transport** — any mode (private/rental car, train, bus, shuttle, taxi, pickup),
+  with driver, total seats, note, and a **status** (Confirmed / Provisional /
+  Cancelled). Free seats are derived automatically (capacity − passengers).
+- **Driver-managed passengers** — no self-registration in a car: the driver (or an
+  admin) records passengers via a search-as-you-type picker that also accepts
+  custom names (people not yet in the group).
+- **My journey** — a personal per-day summary of your flights and rides, with
+  status badges, so missing legs are obvious.
+- **Admin powers** — admins can edit/delete anything, and create transport
+  *on behalf of* another member (for less tech-savvy friends).
+- **French UI** — auto-localized from the Telegram user's language (English
+  fallback; more languages are just one dictionary entry away).
 
 ---
 
 ## Architecture
 
-A Mini App is a web page, so it needs two pieces:
-
 | Piece | What it is | Where it runs |
 |---|---|---|
-| **Frontend** | `miniapp/` — HTML/CSS/JS, talks to Telegram via `Telegram.WebApp` | Any static HTTPS host (see below) |
+| **Frontend** | `miniapp/` — HTML/CSS/JS, talks to Telegram via `Telegram.WebApp` | Cloudflare Pages (or any static HTTPS host) |
 | **Backend** | `backend/` — a single Cloudflare Worker (HTTP API) | Cloudflare Workers (serverless, free tier) |
+| **Storage** | Board + caches | Cloudflare KV |
 
-The backend validates `initData`, checks group membership, and stores the board in
-Cloudflare KV. There is no always-on server and no bot message handling.
-
----
-
-## Requirements
-
-- A [Telegram bot](https://core.telegram.org/bots#how-do-i-create-a-bot) (via
-  [@BotFather](https://t.me/botfather)) — used for the Mini App + the Bot API token.
-- A group/supergroup the bot is **an administrator of** (for reliable membership checks).
-- A [Cloudflare](https://cloudflare.com) account (free) for the backend Worker + KV.
+The backend validates `initData`, checks group membership, stores the board in KV,
+and proxies flight-schedule lookups. There is no always-on server and no bot
+message handling.
 
 ---
 
@@ -62,8 +68,10 @@ npm install -g wrangler      # Cloudflare Workers CLI
 wrangler kv namespace create SAMFERD
 
 # Set secrets (never committed to the repo)
-wrangler secret put BOT_TOKEN      # your bot token from @BotFather
-wrangler secret put GROUP_ID       # the group chat id, e.g. -100123456789
+wrangler secret put BOT_TOKEN              # bot token from @BotFather
+wrangler secret put GROUP_ID               # comma-separated group ids, e.g. -100123,-100456
+wrangler secret put FLIGHT_API_PROVIDER    # aerodatabox (or none)
+wrangler secret put RAPIDAPI_KEY           # AeroDataBox key (if provider = aerodatabox)
 
 wrangler deploy
 ```
@@ -72,28 +80,39 @@ Note the Worker URL (e.g. `https://samferd.yourname.workers.dev`).
 
 ### 3. Host the frontend
 
-Serve the `miniapp/` folder on any static HTTPS host — GitHub Pages, Cloudflare
-Pages, Netlify, Vercel, etc. Then set the backend URL:
+```bash
+wrangler pages deploy miniapp --project-name samferd --branch main
+```
 
-- Edit `miniapp/app.js` → `API` to your Worker URL, **or**
-- Open the app with `?api=https://your-worker.workers.dev`.
+This publishes to the stable `https://<project>.pages.dev` URL. Set that URL as
+the Mini App URL in @BotFather (and as `API` in `miniapp/app.js` if different from
+the default).
 
-Point the Mini App URL in @BotFather at your frontend URL.
+### 4. Add the bot to the group(s)
 
-### 4. Add the bot to the group
-
-Add the bot as an **administrator** of your group, and share the Mini App
-(`https://t.me/<bot>?startapp` or a direct link). Only group members get in;
-everyone else sees a "Join the group" button (edit the invite link in `app.js`).
+Add the bot as an **administrator** of every whitelisted group (required for
+`getChatMember` to resolve statuses). Members open the app via the bot's menu
+button or `https://t.me/<bot>?startapp`.
 
 ---
 
-## Optional flight-data enrichment
+## Flight schedule enrichment
 
-The board stores flight number + date as entered. To auto-fetch origin/destination/
-status, extend `backend/worker.js` in `createFlight` to call a flight API (e.g.
-[Aviationstack](https://aviationstack.com)) before saving — the fields `origin`,
-`destination`, and `status` are already in the schema.
+Set `FLIGHT_API_PROVIDER=aerodatabox` and store your RapidAPI key in
+`RAPIDAPI_KEY`. The Worker calls
+
+```
+GET https://aerodatabox.p.rapidapi.com/flights/number/{number}/{date}?dateLocalRole=Both
+```
+
+once per (flight number, date) pair and caches the result in KV:
+
+- **Found** → cached permanently (a schedule for a given date doesn't change).
+- **Not found** (e.g. date beyond the provider's schedule horizon) → cached 6 h,
+  then retried automatically as the date approaches.
+
+Flights can also be edited manually by an admin (departure/arrival city, times,
+airline) via the ⚙️ Admin panel — useful when the API has no data yet.
 
 ---
 
@@ -101,10 +120,12 @@ status, extend `backend/worker.js` in `createFlight` to call a flight API (e.g.
 
 - `initData` is validated server-side with HMAC-SHA256 (bot token as key), with a
   freshness check on `auth_date`.
-- Group membership is checked via `getChatMember` (`creator`/`administrator`/
-  `member` allowed; `restricted` only if `is_member`), cached 5 minutes in KV.
-- Only a flight's creator can delete it.
-- The bot token and group id are Worker secrets — never in client code.
+- Group membership is checked **live on every request** via `getChatMember`
+  (`creator`/`administrator`/`member` allowed; `restricted` only if `is_member`),
+  across all whitelisted groups. No caching — access changes take effect instantly.
+- Only the creator of a flight/transport (or an admin) can modify or delete it.
+- All secrets (`BOT_TOKEN`, `GROUP_ID`, `RAPIDAPI_KEY`, …) are Worker secrets —
+  never in client code or the repo.
 
 ---
 
@@ -112,12 +133,14 @@ status, extend `backend/worker.js` in `createFlight` to call a flight API (e.g.
 
 ```
 backend/
-├─ worker.js       # Cloudflare Worker: initData validation, membership gate, board API
+├─ worker.js       # Cloudflare Worker: initData validation, membership gate, board API,
+│                  #   flight enrichment (AeroDataBox/AirLabs), admin endpoints
 └─ wrangler.toml   # Worker + KV config (secrets set via `wrangler secret put`)
 miniapp/
 ├─ index.html      # Mini App shell
-├─ app.js          # frontend logic (Telegram WebApp SDK + API calls)
+├─ app.js          # frontend logic (Telegram WebApp SDK, i18n, board/journey views)
 └─ app.css         # mobile-first, Telegram-themed styling
+IMPROVEMENTS.md    # community feedback backlog (items 1–15 implemented)
 ```
 
 ---

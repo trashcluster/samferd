@@ -1164,9 +1164,17 @@ async function init() {
     return;
   }
 
+  // Validate the remembered group against the current membership list; a stale
+  // id (bot removed from that group, etc.) must not block access.
+  if (selectedGroupId && !myGroups.some((g) => g.id === selectedGroupId)) {
+    selectedGroupId = null;
+    localStorage.removeItem('samferdGroupId');
+  }
+
   if (myGroups.length > 1 && !selectedGroupId) {
     showGroupPicker(myGroups);
   } else {
+    if (!selectedGroupId && myGroups.length) selectedGroupId = myGroups[0].id;
     await startApp();
   }
 

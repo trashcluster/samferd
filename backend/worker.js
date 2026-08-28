@@ -134,7 +134,14 @@ async function getMembership(userId, chatId) {
     + `?chat_id=${chatId}&user_id=${userId}`;
   const res = await fetch(url);
   const body = await res.json();
-  if (!body.ok) return { status: 'left' };
+  if (!body.ok) {
+    // Log the Bot API error — this is where lost-admin / wrong-id problems show.
+    console.log('[auth] getChatMember FAILED for', chatId, 'user', userId,
+      'code:', body.error_code, 'desc:', body.description);
+    return { status: 'left' };
+  }
+  console.log('[auth] getChatMember OK for', chatId, 'user', userId,
+    'status:', body.result.status);
   return body.result;
 }
 
@@ -158,6 +165,7 @@ async function resolveGroups(userId) {
   for (const chatId of allowedGroups()) {
     const member = await getMembership(userId, chatId);
     const isMember = statusAllows(member);
+    console.log('[auth] group', chatId, '→ member:', isMember, 'admin:', statusIsAdmin(member));
     if (!isMember) continue;
     // Fetch group name + photo (best-effort; the app works without them).
     let title = `Group ${chatId}`;

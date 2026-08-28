@@ -1364,6 +1364,32 @@ async function init() {
     return;
   }
 
+  // If Telegram did not provide signed initData (e.g. the URL was opened
+  // directly in a browser), nothing can authenticate — say so clearly
+  // instead of the misleading "members only" screen.
+  if (!tg.initData) {
+    $('loading').classList.add('hidden');
+    $('denied').classList.remove('hidden');
+    $('denied-title').textContent = '⚠️ ' + (userLang === 'fr'
+      ? 'Ouvrir dans Telegram'
+      : userLang === 'de' ? 'In Telegram öffnen'
+      : userLang === 'no' || userLang === 'nb' ? 'Åpne i Telegram'
+      : 'Open in Telegram');
+    $('denied-text').textContent = userLang === 'fr'
+      ? "Cette page doit être ouverte depuis Telegram pour pouvoir vous identifier. Ouvrez le mini app via le bouton du bot (pas dans un navigateur)."
+      : userLang === 'de'
+      ? 'Diese Seite muss aus Telegram geöffnet werden, damit du identifiziert werden kannst. Öffne die Mini App über die Bot-Schaltfläche (nicht im Browser).'
+      : userLang === 'no' || userLang === 'nb'
+      ? 'Denne siden må åpnes fra Telegram for at du kan identifiseres. Åpne mini-appen via bot-knappen (ikke i en nettleser).'
+      : 'This page must be opened from Telegram so you can be identified. Open the mini app via the bot button (not in a browser).';
+    $('denied-hint').textContent = userLang === 'fr'
+      ? `URL actuelle : ${location.host}`
+      : userLang === 'de'
+      ? `Aktuelle URL: ${location.host}`
+      : `Current URL: ${location.host}`;
+    return;
+  }
+
   // Resolve the user's groups first: one group → straight in; several → picker.
   try {
     const probe = await call('GET', '/api/groups');

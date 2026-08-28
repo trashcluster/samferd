@@ -41,56 +41,56 @@
     <section class="panel" id="board-flights"></section>
     <section class="panel" id="board-cars-return"></section>
 
-    <!-- Collapsible "Add" form, hidden by default so the board dominates -->
-    <button id="toggle-add" class="btn">＋ Add flight / car</button>
+    <!-- Add form (opened from a section's Add button; hidden by default).
+         Only the relevant sub-form is shown, pre-filled by app.js. -->
     <section id="add-form" class="panel form hidden">
-      <h2>Add a flight</h2>
-      <label>Flight number
-        <input id="flight-number" type="text" placeholder="AF1234" autocomplete="off" />
-      </label>
+      <div id="add-flight-form" class="hidden">
+        <h2 id="add-flight-title">Add a flight</h2>
+        <label>Flight number
+          <input id="flight-number" type="text" placeholder="AF1234" autocomplete="off" />
+        </label>
       <label>Departure date
         <input id="departure-date" type="date" />
       </label>
       <button id="create-flight" class="btn primary">Create flight</button>
+      </div>
 
-      <h2 class="mt">Offer transport</h2>
-      <label id="car-mode-label">Mode of transport
-        <select id="car-mode">
-          <option value="car">🚗 Private car</option>
-          <option value="rental">🚙 Rental car</option>
-          <option value="train">🚆 Train</option>
-          <option value="bus">🚌 Bus</option>
-          <option value="shuttle">🚐 Shuttle</option>
-          <option value="taxi">🚕 Taxi</option>
-          <option value="pickup">🤝 Pickup (someone collecting you)</option>
-          <option value="other">✈️ Other</option>
-        </select>
-      </label>
-      <label id="on-behalf-label" class="hidden">On behalf of (driver/owner)
-        <select id="car-on-behalf"></select>
-      </label>
-      <label>Direction
-        <select id="car-direction">
-          <option value="outbound">To the departure airport</option>
-          <option value="return">From the arrival airport</option>
-        </select>
-      </label>
-      <label>Travel date
-        <input id="car-date" type="date" />
-      </label>
-      <label>Status
-        <select id="car-trip-status">
-          <option value="confirmed">Confirmed</option>
-          <option value="provisional">Provisional</option>
-        </select>
-      </label>
-      <label>Total seats (including driver)
-        <input id="car-seats" type="number" min="1" max="20" value="4" />
-      </label>
-      <label>Note (departure point / time)
-        <input id="car-note" type="text" placeholder="e.g. city center, 05:00" autocomplete="off" />
-      </label>
-      <button id="create-car" class="btn primary">Offer transport</button>
+      <div id="add-car-form" class="hidden">
+        <h2 id="add-car-title">Offer transport</h2>
+        <label id="car-mode-label">Mode of transport
+          <select id="car-mode">
+            <option value="car">🚗 Private car</option>
+            <option value="rental">🚙 Rental car</option>
+            <option value="train">🚆 Train</option>
+            <option value="bus">🚌 Bus</option>
+            <option value="shuttle">🚐 Shuttle</option>
+            <option value="taxi">🚕 Taxi</option>
+            <option value="pickup">🤝 Pickup (someone collecting you)</option>
+            <option value="other">✈️ Other</option>
+          </select>
+        </label>
+        <label id="on-behalf-label" class="hidden">On behalf of (driver/owner)
+          <select id="car-on-behalf"></select>
+        </label>
+        <label>Travel date
+          <input id="car-date" type="date" />
+        </label>
+        <label>Status
+          <select id="car-trip-status">
+            <option value="confirmed">Confirmed</option>
+            <option value="provisional">Provisional</option>
+          </select>
+        </label>
+        <label>Total seats (including driver)
+          <input id="car-seats" type="number" min="1" max="20" value="4" />
+        </label>
+        <label>Note (departure point / time)
+          <input id="car-note" type="text" placeholder="e.g. city center, 05:00" autocomplete="off" />
+        </label>
+        <button id="create-car" class="btn primary">Offer transport</button>
+      </div>
+
+      <button id="close-add" class="btn">Close</button>
     </section>
 
     <!-- Admin (visible only to admins) -->

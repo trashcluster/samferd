@@ -443,23 +443,33 @@ function renderDayPanel(day, flights, cars) {
   bindBoardActions();
 }
 
-// Per-section Add buttons: open the shared add form with the right tab
-// pre-selected (flight vs car, and the car's direction).
+// Per-section Add buttons: open the add form showing ONLY the relevant
+// sub-form (flight or transport), with the direction pre-filled from the
+// section — no manual direction selection needed.
 function bindSectionAddButtons() {
   document.querySelectorAll('.section-add').forEach((btn) => {
     btn.addEventListener('click', () => {
       const form = btn.dataset.addForm;
       const addForm = $('add-form');
-      const wasHidden = addForm.classList.contains('hidden');
       addForm.classList.remove('hidden');
-      $('toggle-add').textContent = '－ Close';
-      if (form === 'car') {
+
+      // Show only the relevant sub-form.
+      const isFlight = form === 'flight';
+      $('add-flight-form').classList.toggle('hidden', !isFlight);
+      $('add-car-form').classList.toggle('hidden', isFlight);
+
+      if (!isFlight) {
+        // Pre-fill direction from the section; the field stays hidden.
         $('car-direction').value = btn.dataset.addDirection || 'outbound';
+        // Default the travel date to the currently selected day.
+        if (selectedDay) $('car-date').value = selectedDay;
+      } else if (selectedDay) {
+        $('departure-date').value = selectedDay;
       }
-      // Scroll to the relevant sub-form heading.
-      const target = form === 'car' ? $('car-direction') : $('flight-number');
-      if (wasHidden || target) target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      if (target && target.focus) target.focus({ preventScroll: true });
+
+      const target = isFlight ? $('flight-number') : $('car-mode');
+      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      if (target.focus) target.focus({ preventScroll: true });
     });
   });
 }
@@ -996,26 +1006,22 @@ function applyStaticI18n() {
   document.querySelector('#denied .empty').textContent = t.askAdmin;
   $('view-board').textContent = t.board;
   $('view-journey').textContent = t.myJourney;
-  $('toggle-add').textContent = t.addFlightCar;
-  document.querySelector('#add-form h2').textContent = t.addFlight;
-  const labels = document.querySelectorAll('#add-form label');
-  // Order: flight number, departure date, mode, on-behalf, direction, date, status, seats, note
-  if (labels[0]) labels[0].firstChild.textContent = t.flightNumber;
-  if (labels[1]) labels[1].firstChild.textContent = t.departureDate;
-  if (labels[2]) labels[2].firstChild.textContent = t.mode;
-  if (labels[3]) labels[3].firstChild.textContent = t.onBehalf;
-  if (labels[4]) labels[4].firstChild.textContent = t.direction;
-  if (labels[5]) labels[5].firstChild.textContent = t.travelDate;
-  if (labels[6]) labels[6].firstChild.textContent = t.statusLabel;
-  if (labels[7]) labels[7].firstChild.textContent = t.totalSeats;
-  if (labels[8]) labels[8].firstChild.textContent = t.note;
+  document.querySelector('#add-flight-form h2').textContent = t.addFlight;
+  const flightLabels = document.querySelectorAll('#add-flight-form label');
+  if (flightLabels[0]) flightLabels[0].firstChild.textContent = t.flightNumber;
+  if (flightLabels[1]) flightLabels[1].firstChild.textContent = t.departureDate;
   $('create-flight').textContent = t.createFlight;
+  document.querySelector('#add-car-form h2').textContent = t.offerTransport;
+  const carLabels = document.querySelectorAll('#add-car-form label');
+  // Order: mode, on-behalf, travel date, status, seats, note
+  if (carLabels[0]) carLabels[0].firstChild.textContent = t.mode;
+  if (carLabels[1]) carLabels[1].firstChild.textContent = t.onBehalf;
+  if (carLabels[2]) carLabels[2].firstChild.textContent = t.travelDate;
+  if (carLabels[3]) carLabels[3].firstChild.textContent = t.statusLabel;
+  if (carLabels[4]) carLabels[4].firstChild.textContent = t.totalSeats;
+  if (carLabels[5]) carLabels[5].firstChild.textContent = t.note;
   $('create-car').textContent = t.offerTransportBtn;
-  const dirSel = $('car-direction');
-  if (dirSel) {
-    dirSel.options[0].textContent = t.toAirport;
-    dirSel.options[1].textContent = t.fromAirport;
-  }
+  $('close-add').textContent = t.closeBtn;
   const statusSel = $('car-trip-status');
   if (statusSel) {
     statusSel.options[0].textContent = t.confirmed;
@@ -1039,12 +1045,12 @@ function applyStaticI18n() {
   $('save-riders').textContent = t.savePassengers;
   $('close-riders').textContent = t.closeBtn;
   document.querySelector('#car-editor h2').textContent = t.editTransport;
-  const carLabels = document.querySelectorAll('#car-editor label');
-  if (carLabels[0]) carLabels[0].firstChild.textContent = t.travelDate;
-  if (carLabels[1]) carLabels[1].firstChild.textContent = t.direction;
-  if (carLabels[2]) carLabels[2].firstChild.textContent = t.totalSeats;
-  if (carLabels[3]) carLabels[3].firstChild.textContent = t.statusLabel;
-  if (carLabels[4]) carLabels[4].firstChild.textContent = t.note;
+  const carEditorLabels = document.querySelectorAll('#car-editor label');
+  if (carEditorLabels[0]) carEditorLabels[0].firstChild.textContent = t.travelDate;
+  if (carEditorLabels[1]) carEditorLabels[1].firstChild.textContent = t.direction;
+  if (carEditorLabels[2]) carEditorLabels[2].firstChild.textContent = t.totalSeats;
+  if (carEditorLabels[3]) carEditorLabels[3].firstChild.textContent = t.statusLabel;
+  if (carEditorLabels[4]) carEditorLabels[4].firstChild.textContent = t.note;
   $('car-edit-save').textContent = t.save;
   $('car-edit-close').textContent = t.closeBtn;
   const carDirSel = $('car-edit-direction');
@@ -1083,12 +1089,9 @@ async function init() {
   // Apply localized static labels.
   applyStaticI18n();
 
-  // Toggle the add form.
-  const toggle = $('toggle-add');
-  const addForm = $('add-form');
-  toggle.addEventListener('click', () => {
-    const hidden = addForm.classList.toggle('hidden');
-    toggle.textContent = hidden ? t.addFlightCar : t.close;
+  // Close button for the add form.
+  $('close-add').addEventListener('click', () => {
+    $('add-form').classList.add('hidden');
   });
 
   // Admin button + panel (visible only to admins).

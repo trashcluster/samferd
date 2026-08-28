@@ -5,13 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
   <title>Samferd</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <link rel="stylesheet" href="app.css?v=20260828b" />
+  <link rel="stylesheet" href="app.css?v=20260828c" />
 </head>
 <body>
   <!-- Visible version tag: proves which build the webview is running. -->
-  <div id="build-tag" style="display:none">build 2026-08-28b</div>
+  <div id="build-tag" style="display:none">build 2026-08-28c</div>
   <header class="topbar">
     <h1>✈️ Samferd</h1>
+    <!-- Shown only when the Telegram client supports addToHomeScreen() -->
+    <button id="add-home" class="btn small hidden" title="Add to home screen">📌</button>
   </header>
 
   <!-- Shown before membership is confirmed -->
@@ -201,6 +203,6 @@
       el.classList.remove('hidden');
     });
   </script>
-  <script src="app.js?v=20260828b"></script>
+  <script src="app.js?v=20260828c"></script>
 </body>
 </html>

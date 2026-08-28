@@ -395,7 +395,6 @@ function applySafeArea() {
 }
 
 if (tg) {
-  tg.ready();
   tg.expand();
 
   // Match the header/background to the theme so the status bar blends in.
@@ -417,6 +416,32 @@ if (tg) {
   // Re-apply safe areas whenever the viewport, safe area, or fullscreen changes.
   ['viewportChanged', 'safeAreaChanged', 'contentSafeAreaChanged', 'fullscreenChanged']
     .forEach((evt) => tg.onEvent(evt, applySafeArea));
+
+  // Follow live theme switches (user changes Telegram day/night mode) — the
+  // CSS variables are bound to Telegram's themeParams, so re-sync the header
+  // and background colors to the new palette.
+  tg.onEvent('themeChanged', () => {
+    const hc = tg.themeParams?.header_bg_color
+      || tg.themeParams?.secondary_bg_color
+      || tg.themeParams?.bg_color;
+    if (hc) {
+      try { tg.setHeaderColor(hc); } catch (_) {}
+      try { tg.setBackgroundColor(hc); } catch (_) {}
+    }
+  });
+
+  // Add to home screen (Bot API 8.0+ on supported clients): offer the native
+  // install prompt once the app is up. The button stays hidden on clients
+  // that don't expose the method.
+  if (typeof tg.addToHomeScreen === 'function') {
+    const homeBtn = document.getElementById('add-home');
+    if (homeBtn) {
+      homeBtn.classList.remove('hidden');
+      homeBtn.addEventListener('click', () => {
+        try { tg.addToHomeScreen(); } catch (_) {}
+      });
+    }
+  }
 }
 
 // Set your backend Worker URL here (or via ?api= query param for easy testing).
@@ -1266,6 +1291,9 @@ function showGroupPicker(groups) {
       startApp();
     });
   });
+
+  // The picker is a complete, interactive screen — safe to reveal now.
+  if (tg) { try { tg.ready(); } catch (_) {} }
 }
 
 function renderGroupHeader() {
@@ -1308,9 +1336,14 @@ async function startApp() {
     $('app').classList.remove('hidden');
     renderGroupHeader();
     await refresh();
+    // All required data (auth, board, cars, users) is loaded and rendered —
+    // only now tell Telegram to reveal the app, so the user never sees a
+    // half-painted screen behind the loading placeholder.
+    if (tg) { try { tg.ready(); } catch (_) {} }
   } catch (e) {
     // 403 → not a member of any whitelisted group
     showDenied(t.membersOnly, t.membersOnlyText, t.askAdmin);
+    if (tg) { try { tg.ready(); } catch (_) {} }
   }
 }
 
@@ -1328,6 +1361,8 @@ async function showDenied(title, text, hint) {
   // Build tag: proves which version the webview is actually running.
   const build = document.getElementById('build-tag');
   $('denied-hint').textContent = (hint ? hint + ' · ' : '') + (build ? build.textContent : '');
+  // The blocked screen is final content — reveal the app.
+  if (tg) { try { tg.ready(); } catch (_) {} }
 
   // Distinguish "not a member" from "bot lost admin": ask the backend which
   // whitelisted groups the bot can still see.
@@ -1365,7 +1400,6 @@ async function init() {
     $('loading').textContent = t.openInTelegram;
     return;
   }
-
   // If Telegram did not provide signed initData (e.g. the URL was opened
   // directly in a browser), nothing can authenticate — say so clearly
   // instead of the misleading "members only" screen.
@@ -1389,6 +1423,7 @@ async function init() {
       : userLang === 'de'
       ? `Aktuelle URL: ${location.host}`
       : `Current URL: ${location.host}`;
+    if (tg) { try { tg.ready(); } catch (_) {} }
     return;
   }
 

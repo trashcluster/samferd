@@ -93,6 +93,23 @@ body {
 }
 
 /* Collapsible section cards */
+.section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.section-head .section-toggle {
+  flex: 1;
+  padding-bottom: 10px;
+}
+
+.section-add {
+  flex: 0 0 auto;
+  margin-bottom: 10px;
+}
+
 .section-toggle {
   display: flex;
   align-items: center;

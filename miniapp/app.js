@@ -214,23 +214,27 @@ function renderDayPanel(day, flights, cars) {
 
   // Each section is a collapsible card: the title row toggles the body.
   // Sections with content start expanded; empty ones start collapsed.
+  // Each title row carries its own Add button that pre-selects the form.
   const sections = [
     {
       key: 'cars-out',
       title: '🚗 Transport to the airport',
       count: carsOut.length,
+      add: { form: 'car', direction: 'outbound' },
       body: carsOut.length ? carsOut.map(renderCar).join('') : '<div class="empty">No transport to the airport yet.</div>',
     },
     {
       key: 'flights',
       title: '🛫 Flights',
       count: dayFlights.length,
+      add: { form: 'flight' },
       body: dayFlights.length ? dayFlights.map(renderFlight).join('') : '<div class="empty">No flights this day.</div>',
     },
     {
       key: 'cars-return',
       title: '🚗 Transport from the arrival airport',
       count: carsReturn.length,
+      add: { form: 'car', direction: 'return' },
       body: carsReturn.length ? carsReturn.map(renderCar).join('') : '<div class="empty">No transport from the airport yet.</div>',
     },
   ];
@@ -239,15 +243,40 @@ function renderDayPanel(day, flights, cars) {
     const panel = $(`board-${s.key}`);
     const open = s.count > 0;
     panel.innerHTML = `
-      <button class="section-toggle" data-section="${s.key}" aria-expanded="${open}">
-        <span class="section-title">${s.title}</span>
-        <span class="section-meta">${s.count ? `${s.count}` : ''}<span class="chev">${open ? '▾' : '▸'}</span></span>
-      </button>
+      <div class="section-head">
+        <button class="section-toggle" data-section="${s.key}" aria-expanded="${open}">
+          <span class="section-title">${s.title}</span>
+          <span class="section-meta">${s.count ? `${s.count}` : ''}<span class="chev">${open ? '▾' : '▸'}</span></span>
+        </button>
+        <button class="btn small section-add" data-add-form="${s.add.form}"${s.add.direction ? ` data-add-direction="${s.add.direction}"` : ''}>＋ Add</button>
+      </div>
       <div class="section-body${open ? '' : ' collapsed'}" data-body="${s.key}">${s.body}</div>`;
   }
 
   bindSectionToggles();
+  bindSectionAddButtons();
   bindBoardActions();
+}
+
+// Per-section Add buttons: open the shared add form with the right tab
+// pre-selected (flight vs car, and the car's direction).
+function bindSectionAddButtons() {
+  document.querySelectorAll('.section-add').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const form = btn.dataset.addForm;
+      const addForm = $('add-form');
+      const wasHidden = addForm.classList.contains('hidden');
+      addForm.classList.remove('hidden');
+      $('toggle-add').textContent = '－ Close';
+      if (form === 'car') {
+        $('car-direction').value = btn.dataset.addDirection || 'outbound';
+      }
+      // Scroll to the relevant sub-form heading.
+      const target = form === 'car' ? $('car-direction') : $('flight-number');
+      if (wasHidden || target) target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      if (target && target.focus) target.focus({ preventScroll: true });
+    });
+  });
 }
 
 // Toggle collapse/expand for a section card.

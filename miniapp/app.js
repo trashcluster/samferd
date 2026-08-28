@@ -205,8 +205,8 @@ function renderDayPanel(day, flights, cars) {
   const carsReturn = dayCars.filter((c) => c.direction === 'return');
 
   $('board-cars-out').innerHTML =
-    '<h2 class="section-title">🚗 Cars to the airport</h2>' +
-    (carsOut.length ? carsOut.map(renderCar).join('') : '<div class="empty">No cars to the airport yet.</div>');
+    '<h2 class="section-title">🚗 Transport to the airport</h2>' +
+    (carsOut.length ? carsOut.map(renderCar).join('') : '<div class="empty">No transport to the airport yet.</div>');
 
   // Sort flights by departure time (earliest first); flights without a known
   // time sort last, in creation order.
@@ -221,8 +221,8 @@ function renderDayPanel(day, flights, cars) {
     (dayFlights.length ? dayFlights.map(renderFlight).join('') : '<div class="empty">No flights this day.</div>');
 
   $('board-cars-return').innerHTML =
-    '<h2 class="section-title">🚗 Cars from the arrival airport</h2>' +
-    (carsReturn.length ? carsReturn.map(renderCar).join('') : '<div class="empty">No cars from the airport yet.</div>');
+    '<h2 class="section-title">🚗 Transport from the arrival airport</h2>' +
+    (carsReturn.length ? carsReturn.map(renderCar).join('') : '<div class="empty">No transport from the airport yet.</div>');
 
   document.querySelectorAll('[data-act]').forEach((btn) => {
     btn.addEventListener('click', () => handleAction(btn.dataset.act, Number(btn.dataset.id)));

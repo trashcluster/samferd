@@ -227,7 +227,17 @@ async function resolveGroups(userId) {
     } catch { /* keep cached defaults */ }
 
     // Persist the registry entry (no expiry; it's the bot's group registry).
-    await env.SAMFERD.put(regKey, JSON.stringify({ title, photoUrl, botAdmin, pendingDeleteAt: reg.pendingDeleteAt || null }));
+    // KV free tier is 1k writes/day: only write when something actually
+    // changed — group title/photo/admin status are stable in practice, so
+    // this avoids burning a write on every request.
+    const nextReg = { title, photoUrl, botAdmin, pendingDeleteAt: reg.pendingDeleteAt || null };
+    if (!reg
+      || reg.title !== nextReg.title
+      || reg.photoUrl !== nextReg.photoUrl
+      || reg.botAdmin !== nextReg.botAdmin
+      || reg.pendingDeleteAt !== nextReg.pendingDeleteAt) {
+      await env.SAMFERD.put(regKey, JSON.stringify(nextReg));
+    }
 
     groups.push({
       id: chatId,
@@ -295,7 +305,14 @@ async function authUser(request) {
   const group = groups.find((g) => g.id === groupId) || groups[0];
 
   // Cache the user's display info so drivers/admins can add them as riders.
-  await env.SAMFERD.put(`user:${user.id}`, JSON.stringify(userInfo(user)));
+  // Only write when the cached entry is missing or differs — avoids a KV
+  // write on every request (KV free tier: 1k writes/day).
+  const userKey = `user:${user.id}`;
+  const info = userInfo(user);
+  const cachedUser = await env.SAMFERD.get(userKey);
+  if (cachedUser !== JSON.stringify(info)) {
+    await env.SAMFERD.put(userKey, JSON.stringify(info));
+  }
 
   return { user, group, groups, isAdmin: group.admin };
 }
@@ -516,7 +533,10 @@ async function handle(request) {
   await sweepStaleBoards();
 
   const board = await loadBoard(group.id);
-  if (prunePast(board)) await saveBoard(group.id, board);
+  // Prune past flights/cars in memory only. Persisting here would burn a KV
+  // write on every GET (free tier: 1k writes/day); the pruned board is
+  // persisted naturally by the next mutation, which also runs prunePast.
+  prunePast(board);
   const findFlight = (id) => board.flights.find((f) => f.id === id);
 
   // ---- auth check ----------------------------------------------------------

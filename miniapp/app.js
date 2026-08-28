@@ -346,7 +346,8 @@ function renderFlight(f) {
 }
 
 function renderCar(c) {
-  const remaining = c.freeSeats - c.riders.length;
+  // Free seats are derived, never stored: capacity minus confirmed passengers.
+  const remaining = Math.max(0, c.freeSeats - c.riders.length);
   const isDriver = c.driver.id === me;
   const tripStatus = c.tripStatus || 'confirmed';
   const isCancelled = tripStatus === 'cancelled';
@@ -359,6 +360,9 @@ function renderCar(c) {
     cancelled: '<span class="badge bad">Cancelled</span>',
   }[tripStatus] || '';
   const fullBadge = isFull && !isCancelled ? '<span class="badge bad">Full</span>' : '';
+  const seatsLine = isCancelled
+    ? ''
+    : `<span class="flight-date">${remaining} of ${c.freeSeats} seat${c.freeSeats === 1 ? '' : 's'} free</span>`;
 
   // Riders are managed by the driver only — no self-registration.
   const riders = c.riders.length
@@ -378,8 +382,9 @@ function renderCar(c) {
     <div class="flight${isCancelled ? ' cancelled' : ''}">
       <div class="flight-head">
         <span class="flight-number">🚗 ${escapeHtml(c.driver.name)}</span>
-        <span class="flight-date">${statusBadge}${fullBadge}</span>
+        ${seatsLine}
       </div>
+      <div class="flight-badges">${statusBadge}${fullBadge}</div>
       ${c.note ? `<div class="flight-route">${escapeHtml(c.note)}</div>` : ''}
       <ul class="passengers">${riders}</ul>
       ${actions ? `<div class="flight-actions">${actions}</div>` : ''}

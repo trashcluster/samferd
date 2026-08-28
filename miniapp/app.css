@@ -212,6 +212,10 @@ body {
 .badge.warn { background: #f9a825; color: #000; }
 .badge.bad { background: var(--tg-theme-destructive-text-color, #e53935); color: #fff; }
 
+.flight-badges {
+  margin-top: 4px;
+}
+
 .flight.cancelled {
   opacity: 0.55;
 }

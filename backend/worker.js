@@ -158,6 +158,11 @@ function statusIsAdmin(member) {
 
 /**
  * Resolve the user's memberships across all whitelisted groups.
+ * Also maintains the group lifecycle registry:
+ *   group:<id>  → { title, photoUrl, botAdmin }  (bot's view of the group)
+ * Boards are auto-created (materialized) for groups where the bot is admin.
+ * When the bot loses admin in a group, the board is marked for deletion and
+ * purged a day later (see sweepStaleBoards).
  * @returns {Promise<Array<{id:number, title:string, photoUrl:string|null, member:boolean, admin:boolean}>>}
  */
 async function resolveGroups(userId) {
@@ -167,18 +172,45 @@ async function resolveGroups(userId) {
     const isMember = statusAllows(member);
     console.log('[auth] group', chatId, '→ member:', isMember, 'admin:', statusIsAdmin(member));
     if (!isMember) continue;
+
+    // --- Group lifecycle: track whether the bot is still admin in this group.
+    const regKey = `group:${chatId}`;
+    const regRaw = await env.SAMFERD.get(regKey);
+    let reg = regRaw ? JSON.parse(regRaw) : null;
+    const botAdmin = statusIsAdmin(await getMembership(await botId(), chatId));
+
+    if (botAdmin) {
+      // Bot is admin: (re-)activate the group and ensure its board exists.
+      if (!reg || !reg.botAdmin) {
+        console.log('[lifecycle] bot is admin of', chatId, '— board active');
+      }
+      const boardRaw = await env.SAMFERD.get(`board:${chatId}`);
+      if (boardRaw === null) {
+        await saveBoard(chatId, { nextId: 1, flights: [], cars: [] });
+        console.log('[lifecycle] auto-created board for group', chatId);
+      }
+      if (reg && reg.pendingDeleteAt) {
+        // Bot regained admin before the purge — cancel the pending deletion.
+        console.log('[lifecycle] bot regained admin of', chatId, '— deletion cancelled');
+        delete reg.pendingDeleteAt;
+      }
+    } else {
+      // Bot lost admin: mark the board for deletion in 24 h (once).
+      if (!reg || !reg.pendingDeleteAt) {
+        console.log('[lifecycle] bot lost admin of', chatId, '— board marked for deletion in 24h');
+      }
+      reg = reg || { title: `Group ${chatId}`, photoUrl: null };
+      reg.pendingDeleteAt = reg.pendingDeleteAt || (Date.now() + 24 * 3600 * 1000);
+    }
+
     // Fetch group name + photo (best-effort; the app works without them).
-    let title = `Group ${chatId}`;
-    let photoUrl = null;
+    let title = reg?.title || `Group ${chatId}`;
+    let photoUrl = reg?.photoUrl || null;
     try {
       const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN()}/getChat?chat_id=${chatId}`);
       const body = await res.json();
       if (body.ok && body.result) {
         title = body.result.title || body.result.username || title;
-        photoUrl = body.result.photo?.big_file_id
-          ? null // file_id needs a getFile round-trip; handled below
-          : null;
-        // Resolve the photo file_id to a direct URL.
         const fileId = body.result.photo?.big_file_id;
         if (fileId) {
           const fr = await fetch(`https://api.telegram.org/bot${BOT_TOKEN()}/getFile?file_id=${encodeURIComponent(fileId)}`);
@@ -188,16 +220,51 @@ async function resolveGroups(userId) {
           }
         }
       }
-    } catch { /* keep defaults */ }
+    } catch { /* keep cached defaults */ }
+
+    // Persist the registry entry (no expiry; it's the bot's group registry).
+    await env.SAMFERD.put(regKey, JSON.stringify({ title, photoUrl, botAdmin, pendingDeleteAt: reg.pendingDeleteAt || null }));
+
     groups.push({
       id: chatId,
       title,
       photoUrl,
       member: true,
       admin: statusIsAdmin(member),
+      botAdmin,
     });
   }
   return groups;
+}
+
+/** The bot's own Telegram id (cached — getMe never changes). */
+async function botId() {
+  if (env._botId) return env._botId;
+  const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN()}/getMe`);
+  const body = await res.json();
+  env._botId = body.ok ? body.result.id : 0;
+  return env._botId;
+}
+
+/**
+ * Purge boards whose group lost bot-admin more than 24 h ago.
+ * Runs opportunistically on group resolution (no scheduler needed).
+ */
+async function sweepStaleBoards() {
+  const keys = await env.SAMFERD.list({ prefix: 'group:' });
+  const now = Date.now();
+  for (const k of keys.keys) {
+    const raw = await env.SAMFERD.get(k.name);
+    if (!raw) continue;
+    let reg;
+    try { reg = JSON.parse(raw); } catch { continue; }
+    if (reg.pendingDeleteAt && reg.pendingDeleteAt <= now) {
+      const chatId = k.name.slice('group:'.length);
+      await env.SAMFERD.delete(`board:${chatId}`);
+      await env.SAMFERD.delete(k.name);
+      console.log('[lifecycle] purged board for group', chatId, '(bot not admin for >24h)');
+    }
+  }
 }
 
 /**
@@ -441,6 +508,9 @@ async function handle(request) {
   }
   const { user, group, groups, isAdmin } = auth;
 
+  // Opportunistic housekeeping: purge boards whose group lost bot-admin >24h ago.
+  await sweepStaleBoards();
+
   const board = await loadBoard(group.id);
   if (prunePast(board)) await saveBoard(group.id, board);
   const findFlight = (id) => board.flights.find((f) => f.id === id);
@@ -453,6 +523,22 @@ async function handle(request) {
   // ---- available groups (for the group picker) -----------------------------
   if (path === '/api/groups' && method === 'GET') {
     return json({ ok: true, groups, current: group.id });
+  }
+
+  // ---- bot-admin status per group (for the warning page) -------------------
+  if (path === '/api/bot-status' && method === 'GET') {
+    const all = allowedGroups().map(async (chatId) => {
+      const regRaw = await env.SAMFERD.get(`group:${chatId}`);
+      let reg = null;
+      try { reg = regRaw ? JSON.parse(regRaw) : null; } catch {}
+      return {
+        id: chatId,
+        title: reg?.title || `Group ${chatId}`,
+        photoUrl: reg?.photoUrl || null,
+        botAdmin: reg?.botAdmin === true,
+      };
+    });
+    return json({ ok: true, groups: await Promise.all(all) });
   }
 
   // ---- board ---------------------------------------------------------------

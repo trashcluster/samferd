@@ -174,7 +174,174 @@ const STRINGS = {
     noOtherUsers: 'No other users have opened the app yet.',
     you: 'you',
   },
+  no: {
+    title: '✈️ Samferd',
+    loading: 'Laster…',
+    membersOnly: '🔒 Kun for medlemmer',
+    membersOnlyText: 'Samferd er kun på invitasjon. Du må være medlem av Telegram-gruppen vår for å bruke den.',
+    askAdmin: 'Spør en gruppeadmin om å invitere deg.',
+    openInTelegram: 'Åpne denne appen fra innsiden av Telegram.',
+    board: '🗓️ Tavle',
+    myJourney: '🧭 Min reise',
+    transportTo: '🚗 Transport til flyplassen',
+    flights: '🛫 Flyvninger',
+    transportFrom: '🚗 Transport fra ankomstflyplassen',
+    noTransportTo: 'Ingen transport til flyplassen ennå.',
+    noFlights: 'Ingen flyvninger denne dagen.',
+    noTransportFrom: 'Ingen transport fra flyplassen ennå.',
+    add: '＋ Legg til',
+    addFlightCar: '＋ Legg til flyvning / transport',
+    close: '－ Lukk',
+    addFlight: 'Legg til en flyvning',
+    flightNumber: 'Flynummer',
+    departureDate: 'Avreisedato',
+    createFlight: 'Opprett flyvning',
+    offerTransport: 'Tilby transport',
+    mode: 'Transportmiddel',
+    direction: 'Retning',
+    toAirport: 'Til avreiseflyplassen',
+    fromAirport: 'Fra ankomstflyplassen',
+    travelDate: 'Reisedato',
+    totalSeats: 'Totalt antall seter (inkludert sjåfør)',
+    statusLabel: 'Status',
+    confirmed: 'Bekreftet',
+    provisional: 'Foreløpig',
+    cancelled: 'Avlyst',
+    note: 'Merknad (avreisested / tid)',
+    offerTransportBtn: 'Tilby transport',
+    admin: '⚙️ Admin',
+    closeAdmin: '⚙️ Lukk admin',
+    adminManage: 'Admin — administrer flyvninger',
+    editFlight: 'Rediger flyvning',
+    saveFlight: 'Lagre flyvning',
+    destCity: 'Ankomstby / flyplass',
+    depCity: 'Avreiseby / flyplass',
+    depTime: 'Avgangstid (TT:MM)',
+    passengers: 'Passasjerer',
+    passengerHint: 'Søk og huk av de som reiser med deg, eller skriv inn et eget navn. Setene avtales med sjåføren utenfor appen.',
+    searchPlaceholder: 'Søk etter personer eller legg til et navn…',
+    typeLetter: 'Skriv minst én bokstav for å søke.',
+    noMatches: 'Ingen treff.',
+    addCustom: 'Legg til',
+    selected: 'Valgt',
+    noSelected: 'Ingen passasjerer valgt.',
+    savePassengers: 'Lagre passasjerer',
+    closeBtn: 'Lukk',
+    modify: 'Endre',
+    editTransport: 'Endre transport',
+    save: 'Lagre',
+    delete: 'Slett',
+    editPassengers: 'Rediger passasjerer',
+    addedByAdmin: 'lagt til av admin',
+    noPassengers: '(ingen passasjerer ennå)',
+    seatsFree: 'sete ledig',
+    seatsFreePlural: 'seter ledig',
+    full: 'Fullt',
+    youDrive: 'du kjører',
+    with: 'med',
+    nothingPlanned: 'Ingenting planlagt ennå.<br/>Bli med på en flyvning eller transport fra Tavle-fanen.',
+    routeNa: 'rute ukjent',
+    today: 'I dag',
+    tomorrow: 'I morgen',
+    pickDate: 'Velg en reisedato for bilen.',
+    enterFlightAndDate: 'Skriv inn flynummer og dato.',
+    saved: 'Lagret.',
+    transportUpdated: 'Transport oppdatert.',
+    flightUpdated: 'Flyvning oppdatert.',
+    noteSaved: 'Merknad lagret.',
+    pickFlight: 'Velg en flyvning først.',
+    enterFlightId: 'Skriv inn en fly-id.',
+    onBehalf: 'På vegne av (sjåfør / eier)',
+    myself: '— meg selv —',
+    noOtherUsers: 'Ingen andre brukere har åpnet appen ennå.',
+    you: 'deg',
+  },
+  de: {
+    title: '✈️ Samferd',
+    loading: 'Wird geladen…',
+    membersOnly: '🔒 Nur für Mitglieder',
+    membersOnlyText: 'Samferd ist nur auf Einladung. Du musst Mitglied unserer Telegram-Gruppe sein, um die App zu nutzen.',
+    askAdmin: 'Bitte einen Gruppen-Admin, dich einzuladen.',
+    openInTelegram: 'Öffne diese App aus Telegram heraus.',
+    board: '🗓️ Übersicht',
+    myJourney: '🧭 Meine Reise',
+    transportTo: '🚗 Transport zum Flughafen',
+    flights: '🛫 Flüge',
+    transportFrom: '🚗 Transport vom Ankunftsflughafen',
+    noTransportTo: 'Noch kein Transport zum Flughafen.',
+    noFlights: 'Keine Flüge an diesem Tag.',
+    noTransportFrom: 'Noch kein Transport vom Flughafen.',
+    add: '＋ Hinzufügen',
+    addFlightCar: '＋ Flug / Transport hinzufügen',
+    close: '－ Schließen',
+    addFlight: 'Flug hinzufügen',
+    flightNumber: 'Flugnummer',
+    departureDate: 'Abreisedatum',
+    createFlight: 'Flug anlegen',
+    offerTransport: 'Transport anbieten',
+    mode: 'Verkehrsmittel',
+    direction: 'Richtung',
+    toAirport: 'Zum Abflugflughafen',
+    fromAirport: 'Vom Ankunftsflughafen',
+    travelDate: 'Reisedatum',
+    totalSeats: 'Gesamtplätze (inkl. Fahrer)',
+    statusLabel: 'Status',
+    confirmed: 'Bestätigt',
+    provisional: 'Vorläufig',
+    cancelled: 'Abgesagt',
+    note: 'Notiz (Abfahrtsort / -zeit)',
+    offerTransportBtn: 'Transport anbieten',
+    admin: '⚙️ Admin',
+    closeAdmin: '⚙️ Admin schließen',
+    adminManage: 'Admin — Flüge verwalten',
+    editFlight: 'Flug bearbeiten',
+    saveFlight: 'Flug speichern',
+    destCity: 'Ankunftsstadt / -flughafen',
+    depCity: 'Abfahrtsstadt / -flughafen',
+    depTime: 'Abfahrtszeit (HH:MM)',
+    passengers: 'Passagiere',
+    passengerHint: 'Suche und wähle die Personen aus, die mit dir reisen, oder gib einen eigenen Namen ein. Plätze werden mit dem Fahrer außerhalb der App vereinbart.',
+    searchPlaceholder: 'Personen suchen oder Namen eingeben…',
+    typeLetter: 'Mindestens einen Buchstaben eingeben, um zu suchen.',
+    noMatches: 'Keine Treffer.',
+    addCustom: 'Hinzufügen',
+    selected: 'Ausgewählt',
+    noSelected: 'Keine Passagiere ausgewählt.',
+    savePassengers: 'Passagiere speichern',
+    closeBtn: 'Schließen',
+    modify: 'Ändern',
+    editTransport: 'Transport ändern',
+    save: 'Speichern',
+    delete: 'Löschen',
+    editPassengers: 'Passagiere bearbeiten',
+    addedByAdmin: 'von einem Admin hinzugefügt',
+    noPassengers: '(noch keine Passagiere)',
+    seatsFree: 'Platz frei',
+    seatsFreePlural: 'Plätze frei',
+    full: 'Voll',
+    youDrive: 'du fährst',
+    with: 'mit',
+    nothingPlanned: 'Noch nichts geplant.<br/>Tritt einem Flug oder Transport in der Übersicht bei.',
+    routeNa: 'Strecke unbekannt',
+    today: 'Heute',
+    tomorrow: 'Morgen',
+    pickDate: 'Wähle ein Reisedatum für das Auto.',
+    enterFlightAndDate: 'Flugnummer und Datum eingeben.',
+    saved: 'Gespeichert.',
+    transportUpdated: 'Transport aktualisiert.',
+    flightUpdated: 'Flug aktualisiert.',
+    noteSaved: 'Notiz gespeichert.',
+    pickFlight: 'Wähle zuerst einen Flug.',
+    enterFlightId: 'Flug-ID eingeben.',
+    onBehalf: 'Im Namen von (Fahrer/Eigentümer)',
+    myself: '— ich selbst —',
+    noOtherUsers: 'Noch keine anderen Nutzer haben die App geöffnet.',
+    you: 'dir',
+  },
 };
+
+// Norwegian has two codes (no / nb); map both to the same dictionary.
+STRINGS.nb = STRINGS.no;
 
 const userLang = (tg?.initDataUnsafe?.user?.language_code || 'fr').slice(0, 2);
 const t = STRINGS[userLang] || STRINGS.fr;
@@ -1135,15 +1302,57 @@ async function startApp() {
     myGroups = auth.groups || [];
     $('loading').classList.add('hidden');
     $('group-picker').classList.add('hidden');
+    $('denied').classList.add('hidden');
     $('app').classList.remove('hidden');
     renderGroupHeader();
     await refresh();
   } catch (e) {
     // 403 → not a member of any whitelisted group
-    $('loading').classList.add('hidden');
-    $('group-picker').classList.add('hidden');
-    $('denied').classList.remove('hidden');
+    showDenied(t.membersOnly, t.membersOnlyText, t.askAdmin);
   }
+}
+
+/**
+ * Show the blocked screen. When the bot is not an admin of any group the user
+ * belongs to, show the specific "give the bot admin rights" warning.
+ */
+async function showDenied(title, text, hint) {
+  $('loading').classList.add('hidden');
+  $('group-picker').classList.add('hidden');
+  $('app').classList.add('hidden');
+  $('denied').classList.remove('hidden');
+  $('denied-title').textContent = title;
+  $('denied-text').textContent = text;
+  $('denied-hint').textContent = hint;
+
+  // Distinguish "not a member" from "bot lost admin": ask the backend which
+  // whitelisted groups the bot can still see.
+  try {
+    const status = await call('GET', '/api/bot-status');
+    const botGroups = (status.groups || []).filter((g) => g.botAdmin);
+    const userInBotAdminGroup = botGroups.some((g) => myGroups.some((m) => m.id === g.id));
+    if (myGroups.length > 0 && !userInBotAdminGroup) {
+      // The user is a member of whitelisted group(s), but the bot is not an
+      // admin in any of them → the specific warning requested.
+      $('denied-title').textContent = '🤖 ' + (userLang === 'fr'
+        ? 'Droits du bot manquants'
+        : userLang === 'de' ? 'Bot-Rechte fehlen'
+        : userLang === 'no' || userLang === 'nb' ? 'Botrettigheter mangler'
+        : 'Bot permissions missing');
+      $('denied-text').textContent = userLang === 'fr'
+        ? "Le bot du mini app n'a trouvé aucun groupe dont vous êtes membre où il possède les droits d'administrateur. Veuillez donner les droits d'administrateur à ce bot."
+        : userLang === 'de'
+        ? 'Der Mini-App-Bot hat keine Gruppe gefunden, in der Sie Mitglied sind und wo er Admin-Rechte hat. Bitte geben Sie diesem Bot Admin-Rechte.'
+        : userLang === 'no' || userLang === 'nb'
+        ? 'Mini-app-boten fant ingen gruppe du er medlem av der den har adminrettigheter. Vennligst gi denne boten adminrettigheter.'
+        : 'The mini app bot did not find a group you are member of where it has admin rights, please give admin rights to this bot.';
+      $('denied-hint').textContent = userLang === 'fr'
+        ? 'Groupes configurés : ' + (status.groups || []).map((g) => g.title).join(', ')
+        : userLang === 'de'
+        ? 'Konfigurierte Gruppen: ' + (status.groups || []).map((g) => g.title).join(', ')
+        : 'Configured groups: ' + (status.groups || []).map((g) => g.title).join(', ');
+    }
+  } catch { /* keep the generic message */ }
 }
 
 async function init() {
@@ -1159,8 +1368,7 @@ async function init() {
     myGroups = probe.groups || [];
     if (probe.current) selectedGroupId = probe.current;
   } catch (e) {
-    $('loading').classList.add('hidden');
-    $('denied').classList.remove('hidden');
+    await showDenied(t.membersOnly, t.membersOnlyText, t.askAdmin);
     return;
   }
 

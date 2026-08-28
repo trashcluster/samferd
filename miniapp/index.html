@@ -23,6 +23,13 @@
     </div>
   </div>
 
+  <!-- Shown to non-members / when the bot is not admin of the user's group -->
+  <div id="denied" class="panel hidden">
+    <h2 id="denied-title">🔒 Members only</h2>
+    <p id="denied-text">Samferd is invite-only. You must be a member of our Telegram group to use it.</p>
+    <p id="denied-hint" class="empty">Ask a group admin to invite you.</p>
+  </div>
+
   <!-- Group context header (name + photo + switcher) -->
   <header id="group-header" class="group-header hidden">
     <img id="group-photo" class="group-photo hidden" alt="" />
@@ -30,13 +37,6 @@
     <span id="group-name" class="group-name"></span>
     <button id="switch-group" class="btn small">⇄</button>
   </header>
-
-  <!-- Shown to non-members -->
-  <div id="denied" class="panel hidden">
-    <h2>🔒 Members only</h2>
-    <p>Samferd is invite-only. You must be a member of our Telegram group to use it.</p>
-    <p class="empty">Ask a group admin to invite you.</p>
-  </div>
 
   <!-- Main app -->
   <main id="app" class="hidden">

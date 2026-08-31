@@ -72,6 +72,10 @@
       <label>Departure date
         <input id="departure-date" type="date" />
       </label>
+      <label>Stops (optional — for multi-leg flights; leave empty for auto lookup)
+        <div id="add-legs" class="legs-editor"></div>
+        <button id="add-add-leg" class="btn small" type="button">+ Add stop</button>
+      </label>
       <button id="create-flight" class="btn primary">Create flight</button>
       </div>
 
@@ -136,6 +140,10 @@
         </label>
         <label>Departure time (HH:MM)
           <input id="admin-departure-time" type="text" placeholder="13:45" autocomplete="off" />
+        </label>
+        <label>Stops (multi-leg itinerary — last time is the arrival)
+          <div id="admin-legs" class="legs-editor"></div>
+          <button id="admin-add-leg" class="btn small" type="button">+ Add stop</button>
         </label>
         <button id="admin-save-flight" class="btn primary">Save flight</button>
       </div>

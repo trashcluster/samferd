@@ -621,20 +621,29 @@ async function handle(request) {
 
     // Auto-enrich origin/destination/departure time the first time this
     // flight number + date is seen (cached; null when disabled or unknown).
+    // Manual legs from the form take precedence over the API enrichment.
     const enrichment = await enrichFlight(flightNumber, departureDate);
+    const manualLegs = Array.isArray(body.legs) && body.legs.length
+      ? body.legs.map((l) => ({
+          origin: l.origin ? String(l.origin).toUpperCase() : null,
+          destination: l.destination ? String(l.destination).toUpperCase() : null,
+          departureTime: l.departureTime ? String(l.departureTime) : null,
+          arrivalTime: l.arrivalTime ? String(l.arrivalTime) : null,
+        }))
+      : null;
 
     const flight = {
       id: board.nextId++,
       flightNumber,
       departureDate,
-      origin: enrichment?.origin || null,
-      destination: enrichment?.destination || null,
-      departureTime: enrichment?.departureTime || null,
-      arrivalTime: enrichment?.arrivalTime || null,
+      origin: manualLegs ? manualLegs[0].origin : (enrichment?.origin || null),
+      destination: manualLegs ? manualLegs[manualLegs.length - 1].destination : (enrichment?.destination || null),
+      departureTime: manualLegs ? manualLegs[0].departureTime : (enrichment?.departureTime || null),
+      arrivalTime: manualLegs ? manualLegs[manualLegs.length - 1].arrivalTime : (enrichment?.arrivalTime || null),
       terminal: enrichment?.terminal || null,
       gate: enrichment?.gate || null,
       airline: enrichment?.airline || null,
-      legs: enrichment?.legs || null,
+      legs: manualLegs && manualLegs.length > 1 ? manualLegs : (enrichment?.legs || null),
       status: null,
       createdBy: user.id,
       passengers: [],
@@ -889,6 +898,18 @@ async function handle(request) {
     // Departure city/airport, times, and other info.
     for (const f of ['origin', 'destination', 'departureTime', 'arrivalTime', 'terminal', 'gate', 'airline', 'status']) {
       if (f in body) flight[f] = body[f] ? String(body[f]) : null;
+    }
+    // Manual legs (multi-leg itinerary). An empty array clears the legs.
+    if ('legs' in body) {
+      const legs = Array.isArray(body.legs)
+        ? body.legs.map((l) => ({
+            origin: l.origin ? String(l.origin).toUpperCase() : null,
+            destination: l.destination ? String(l.destination).toUpperCase() : null,
+            departureTime: l.departureTime ? String(l.departureTime) : null,
+            arrivalTime: l.arrivalTime ? String(l.arrivalTime) : null,
+          }))
+        : null;
+      flight.legs = legs && legs.length > 1 ? legs : null;
     }
 
     await saveBoard(group.id, board);

@@ -1133,6 +1133,122 @@ async function saveRiders() {
   }
 }
 
+// Wire up the admin UI. Called from startApp() (idempotent): at init() time
+// isAdmin is not yet known when the user goes through the group picker, which
+// previously left the admin interface unreachable for picker users.
+let adminUIwired = false;
+let refreshWrapped = false;
+function setupAdminUI() {
+  const adminToggle = $('toggle-admin');
+  if (!isAdmin) {
+    adminToggle.classList.add('hidden');
+    $('admin-panel').classList.add('hidden');
+    return;
+  }
+  // Admins can create transport on behalf of a known user.
+  $('on-behalf-label').classList.remove('hidden');
+  const sel = $('car-on-behalf');
+  const fillOnBehalf = () => {
+    const current = sel.value;
+    sel.innerHTML = `<option value="">${t.myself}</option>`
+      + knownUsers.filter((u) => u.id !== me).map((u) =>
+        `<option value="${u.id}">${escapeHtml(u.name)}</option>`).join('');
+    if (current) sel.value = current;
+  };
+  fillOnBehalf();
+  // Keep the list fresh each time the board refreshes (wrap only once).
+  if (!refreshWrapped) {
+    refreshWrapped = true;
+    const origRefresh = refresh;
+    refresh = async function () { await origRefresh(); fillOnBehalf(); };
+  }
+
+  adminToggle.classList.remove('hidden');
+  adminToggle.textContent = `${t.admin} 🔒`;
+  if (!adminUIwired) {
+    adminUIwired = true;
+    const adminPanel = $('admin-panel');
+    adminToggle.addEventListener('click', () => {
+      const hidden = adminPanel.classList.toggle('hidden');
+      adminToggle.textContent = hidden ? t.admin : t.closeAdmin;
+    });
+    $('admin-save-flight').addEventListener('click', adminSaveFlight);
+    $('admin-add-leg').addEventListener('click', () => appendLegRow('admin-legs'));
+  }
+}
+
+// --- Manual legs editor (add-flight form + admin editor) --------------------
+
+// One stop row: airport code + time. The last stop's time is the arrival
+// time; all earlier stops' times are departure times.
+function legRowHTML(code = '', time = '') {
+  return `
+    <div class="leg-row">
+      <input class="leg-airport" type="text" maxlength="4" placeholder="CDG" value="${escapeHtml(code)}" autocomplete="off" />
+      <input class="leg-time" type="text" maxlength="5" placeholder="13:45" value="${escapeHtml(time)}" autocomplete="off" />
+      <button class="btn small danger leg-remove" type="button">✕</button>
+    </div>`;
+}
+
+function appendLegRow(containerId, code, time) {
+  const box = $(containerId);
+  box.insertAdjacentHTML('beforeend', legRowHTML(code, time));
+  const row = box.lastElementChild;
+  row.querySelector('.leg-remove').addEventListener('click', () => {
+    // Keep at least two stops (origin + destination).
+    if (box.children.length > 2) row.remove();
+  });
+}
+
+// Initialize a legs editor with stops derived from a flight (or two empty
+// rows when the flight has no data yet).
+function initLegsEditor(containerId, f) {
+  const box = $(containerId);
+  box.innerHTML = '';
+  let stops = [];
+  if (f && Array.isArray(f.legs) && f.legs.length > 1) {
+    // Multi-leg: every leg's origin is a stop with its departure time; the
+    // final destination closes the chain with its arrival time.
+    f.legs.forEach((leg) => stops.push({ code: leg.origin || '', time: leg.departureTime || '' }));
+    const last = f.legs[f.legs.length - 1];
+    stops.push({ code: last.destination || '', time: last.arrivalTime || '' });
+  } else if (f && (f.origin || f.destination)) {
+    stops = [
+      { code: f.origin || '', time: f.departureTime || '' },
+      { code: f.destination || '', time: f.arrivalTime || '' },
+    ];
+  }
+  while (stops.length < 2) stops.push({ code: '', time: '' });
+  stops.forEach((s) => appendLegRow(containerId, s.code, s.time));
+}
+
+// Collect the stops entered in a legs editor. Returns null when nothing was
+// entered (→ let the automatic enrichment handle the route).
+function collectLegs(containerId) {
+  const rows = [...$(containerId).querySelectorAll('.leg-row')];
+  const stops = rows.map((row) => ({
+    code: row.querySelector('.leg-airport').value.trim().toUpperCase(),
+    time: row.querySelector('.leg-time').value.trim(),
+  })).filter((s) => s.code);
+  if (stops.length < 2) return null;
+  const legs = [];
+  for (let i = 0; i < stops.length - 1; i++) {
+    legs.push({
+      origin: stops[i].code,
+      destination: stops[i + 1].code,
+      departureTime: stops[i].time || null,
+      arrivalTime: i === stops.length - 2 ? (stops[stops.length - 1].time || null) : null,
+    });
+  }
+  return {
+    legs,
+    origin: stops[0].code,
+    destination: stops[stops.length - 1].code,
+    departureTime: stops[0].time || null,
+    arrivalTime: stops[stops.length - 1].time || null,
+  };
+}
+
 async function refresh() {
   try {
     const { flights, cars, known } = await call('GET', '/api/board');
@@ -1153,10 +1269,20 @@ async function createFlight() {
     return;
   }
   try {
-    await call('POST', '/api/flights', { flightNumber, departureDate });
+    const payload = { flightNumber, departureDate };
+    // Manual stops (when filled in) override the automatic enrichment.
+    const manual = collectLegs('add-legs');
+    if (manual) {
+      payload.legs = manual.legs;
+      payload.origin = manual.origin;
+      payload.destination = manual.destination;
+      payload.departureTime = manual.departureTime;
+      payload.arrivalTime = manual.arrivalTime;
+    }
+    await call('POST', '/api/flights', payload);
     $('flight-number').value = '';
     $('departure-date').value = '';
-    selectedDay = departureDate; // show the newly added day
+    initLegsEditor('add-legs', null);    selectedDay = departureDate; // show the newly added day
     await refresh();
     if (tg) tg.HapticFeedback.notificationOccurred('success');
   } catch (e) {
@@ -1223,6 +1349,7 @@ function openAdminEditor(id) {
   $('admin-origin').value = f.origin || '';
   $('admin-destination').value = f.destination || '';
   $('admin-departure-time').value = f.departureTime || '';
+  initLegsEditor('admin-legs', f);
   $('admin-editor').classList.remove('hidden');
   // Scroll the editor into view on small screens.
   $('admin-editor').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -1245,6 +1372,15 @@ async function adminSaveFlight() {
   if (origin) body.origin = origin;
   if (destination) body.destination = destination;
   if (departureTime) body.departureTime = departureTime;
+  // Manual legs (when filled in) override the simple origin/destination form.
+  const manual = collectLegs('admin-legs');
+  if (manual) {
+    body.legs = manual.legs;
+    body.origin = manual.origin;
+    body.destination = manual.destination;
+    body.departureTime = manual.departureTime;
+    body.arrivalTime = manual.arrivalTime;
+  }
   try {
     await call('PATCH', '/api/flights', body);
     toast(t.flightUpdated);
@@ -1388,8 +1524,7 @@ function renderGroupHeader() {
 
 async function startApp() {
   try {
-    const auth = await call('GET', '/api/auth');
-    me = auth.user.id;
+    const auth = await call('GET', '/api/auth');    me = auth.user.id;
     isAdmin = !!auth.isAdmin;
     currentGroup = auth.group || null;
     myGroups = auth.groups || [];
@@ -1398,6 +1533,7 @@ async function startApp() {
     $('denied').classList.add('hidden');
     $('app').classList.remove('hidden');
     renderGroupHeader();
+    setupAdminUI();
     await refresh();
     // All required data (auth, board, cars, users) is loaded AND fully
     // rendered. Give the browser a couple of frames plus a short settle so
@@ -1543,6 +1679,10 @@ async function init() {
     $('add-form').classList.add('hidden');
   });
 
+  // Manual legs editor in the add-flight form (starts with two empty rows).
+  initLegsEditor('add-legs', null);
+  $('add-add-leg').addEventListener('click', () => appendLegRow('add-legs'));
+
   // Group switcher: re-open the picker.
   $('switch-group').addEventListener('click', () => {
     selectedGroupId = null;
@@ -1552,32 +1692,9 @@ async function init() {
   });
 
   // Admin button + panel (visible only to admins of the selected group).
-  if (isAdmin) {
-    // Admins can create transport on behalf of a known user.
-    $('on-behalf-label').classList.remove('hidden');
-    const sel = $('car-on-behalf');
-    const fillOnBehalf = () => {
-      const current = sel.value;
-      sel.innerHTML = `<option value="">${t.myself}</option>`
-        + knownUsers.filter((u) => u.id !== me).map((u) =>
-          `<option value="${u.id}">${escapeHtml(u.name)}</option>`).join('');
-      if (current) sel.value = current;
-    };
-    fillOnBehalf();
-    // Keep the list fresh each time the board refreshes.
-    const origRefresh = refresh;
-    refresh = async function () { await origRefresh(); fillOnBehalf(); };
-
-    $('toggle-admin').classList.remove('hidden');
-    const adminToggle = $('toggle-admin');
-    adminToggle.textContent = `${t.admin} 🔒`;
-    const adminPanel = $('admin-panel');
-    adminToggle.addEventListener('click', () => {
-      const hidden = adminPanel.classList.toggle('hidden');
-      adminToggle.textContent = hidden ? t.admin : t.closeAdmin;
-    });
-    $('admin-save-flight').addEventListener('click', adminSaveFlight);
-  }
+  // NOTE: actual setup happens in setupAdminUI(), called from startApp() once
+  // isAdmin is known — at init() time the group (and its admin status) is not
+  // resolved yet when the user goes through the group picker.
 
   // Invite-only: no public join link. Non-members are told to contact an admin.
   $('create-flight').addEventListener('click', createFlight);

@@ -332,6 +332,33 @@ body {
   line-height: 19px;
 }
 
+/* Manual legs editor (add-flight form + admin editor) */
+.legs-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.leg-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.leg-row .leg-airport {
+  flex: 0 0 70px;
+  text-transform: uppercase;
+}
+
+.leg-row .leg-time {
+  flex: 0 0 80px;
+}
+
+.leg-row .leg-remove {
+  flex: 0 0 auto;
+}
+
 .flight-airline {
   color: var(--tg-theme-hint-color, #888);
   font-size: 13px;

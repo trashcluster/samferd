@@ -359,6 +359,12 @@ body {
   flex: 0 0 auto;
 }
 
+/* Red underline for invalid/missing time or airport fields. */
+.input-error {
+  border-bottom: 2px solid var(--tg-theme-destructive-text-color, #e53935) !important;
+  border-radius: 0;
+}
+
 .flight-airline {
   color: var(--tg-theme-hint-color, #888);
   font-size: 13px;

@@ -53,6 +53,8 @@ const STRINGS = {
     destCity: "Ville / aéroport d'arrivée",
     depCity: 'Ville / aéroport de départ',
     depTime: 'Heure de départ (HH:MM)',
+    timesMissing: 'Horaires manquants — l\'API n\'a pas trouvé les heures de départ/arrivée. Complétez-les ci-dessous.',
+    stop: 'Escales',
     passengers: 'Passagers',
     passengerHint: 'Recherchez et cochez les personnes qui voyagent avec vous, ou saisissez un nom personnalisé. Les places se règlent avec le conducteur en dehors de l’app.',
     searchPlaceholder: 'Rechercher ou ajouter un nom…',
@@ -135,6 +137,8 @@ const STRINGS = {
     destCity: 'Destination city / airport',
     depCity: 'Departure city / airport',
     depTime: 'Departure time (HH:MM)',
+    timesMissing: 'Missing times — the API did not find the departure/arrival times. Please complete them below.',
+    stop: 'Stops',
     passengers: 'Passengers',
     passengerHint: 'Search and tick the people travelling with you, or type a custom name. Seats are arranged with the driver outside the app.',
     searchPlaceholder: 'Search people or add a custom name…',
@@ -217,6 +221,8 @@ const STRINGS = {
     destCity: 'Ankomstby / flyplass',
     depCity: 'Avreiseby / flyplass',
     depTime: 'Avgangstid (TT:MM)',
+    timesMissing: 'Manglende tider — API-en fant ikke avgangs-/ankomsttidene. Vennligst fyll dem inn nedenfor.',
+    stop: 'Stopp',
     passengers: 'Passasjerer',
     passengerHint: 'Søk og huk av de som reiser med deg, eller skriv inn et eget navn. Setene avtales med sjåføren utenfor appen.',
     searchPlaceholder: 'Søk etter personer eller legg til et navn…',
@@ -299,6 +305,8 @@ const STRINGS = {
     destCity: 'Ankunftsstadt / -flughafen',
     depCity: 'Abfahrtsstadt / -flughafen',
     depTime: 'Abfahrtszeit (HH:MM)',
+    timesMissing: 'Fehlende Zeiten — die API hat die Abfahrts-/Ankunftszeiten nicht gefunden. Bitte ergänzen Sie sie unten.',
+    stop: 'Zwischenstopps',
     passengers: 'Passagiere',
     passengerHint: 'Suche und wähle die Personen aus, die mit dir reisen, oder gib einen eigenen Namen ein. Plätze werden mit dem Fahrer außerhalb der App vereinbart.',
     searchPlaceholder: 'Personen suchen oder Namen eingeben…',
@@ -1268,26 +1276,95 @@ async function createFlight() {
     toast(t.enterFlightAndDate);
     return;
   }
-  try {
-    const payload = { flightNumber, departureDate };
-    // Manual stops (when filled in) override the automatic enrichment.
+  // If the missing-times editor is open, validate it: every stop needs a
+  // valid HH:MM time, otherwise underline the offending fields in red and
+  // block the save.
+  if (!$('add-times-missing').classList.contains('hidden')) {
+    if (!validateLegTimes('add-legs')) return;
     const manual = collectLegs('add-legs');
     if (manual) {
-      payload.legs = manual.legs;
-      payload.origin = manual.origin;
-      payload.destination = manual.destination;
-      payload.departureTime = manual.departureTime;
-      payload.arrivalTime = manual.arrivalTime;
+      try {
+        await call('PATCH', '/api/flights', {
+          id: pendingFlightId,
+          legs: manual.legs,
+          origin: manual.origin,
+          destination: manual.destination,
+          departureTime: manual.departureTime,
+          arrivalTime: manual.arrivalTime,
+        });
+      } catch (e) {
+        toast(e.message);
+        return;
+      }
     }
-    await call('POST', '/api/flights', payload);
+    hideMissingTimesEditor();
     $('flight-number').value = '';
     $('departure-date').value = '';
-    initLegsEditor('add-legs', null);    selectedDay = departureDate; // show the newly added day
+    pendingFlightId = null;
+    selectedDay = departureDate;
     await refresh();
     if (tg) tg.HapticFeedback.notificationOccurred('success');
+    return;
+  }
+  try {
+    const { flight } = await call('POST', '/api/flights', { flightNumber, departureDate });
+    $('flight-number').value = '';
+    $('departure-date').value = '';
+    selectedDay = departureDate; // show the newly added day
+    await refresh();
+    if (tg) tg.HapticFeedback.notificationOccurred('success');
+    // The API could not resolve the departure/arrival times → ask the user
+    // to complete them for the freshly created flight before it's usable.
+    if (flight && (!flight.departureTime || !flight.arrivalTime)) {
+      pendingFlightId = flight.id;
+      showMissingTimesEditor(flight);
+    }
   } catch (e) {
     toast(e.message);
   }
+}
+
+// --- Missing-times editor (shown after creating a flight whose times the
+// --- API could not resolve) -------------------------------------------------
+
+let pendingFlightId = null; // flight awaiting manual times
+
+function showMissingTimesEditor(flight) {
+  pendingFlightId = flight.id;
+  $('add-times-hint').textContent = t.timesMissing;
+  $('add-times-label').firstChild.textContent = t.stop;
+  initLegsEditor('add-legs', flight);
+  $('add-times-missing').classList.remove('hidden');
+  $('add-times-missing').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function hideMissingTimesEditor() {
+  $('add-times-missing').classList.add('hidden');
+  initLegsEditor('add-legs', null);
+  clearLegTimeErrors('add-legs');
+}
+
+// Validate every stop row: airport code required, time must be HH:MM.
+// Offending inputs get a red underline; returns true when all valid.
+function validateLegTimes(containerId) {
+  const box = $(containerId);
+  let valid = true;
+  for (const row of box.querySelectorAll('.leg-row')) {
+    const codeInput = row.querySelector('.leg-airport');
+    const timeInput = row.querySelector('.leg-time');
+    const code = codeInput.value.trim().toUpperCase();
+    const time = timeInput.value.trim();
+    const timeOk = /^\d{1,2}:\d{2}$/.test(time) && Number(time.split(':')[0]) < 24 && Number(time.split(':')[1]) < 60;
+    codeInput.classList.toggle('input-error', !code);
+    timeInput.classList.toggle('input-error', !timeOk);
+    if (!code || !timeOk) valid = false;
+  }
+  if (!valid) toast(t.timesMissing);
+  return valid;
+}
+
+function clearLegTimeErrors(containerId) {
+  $(containerId).querySelectorAll('.input-error').forEach((el) => el.classList.remove('input-error'));
 }
 
 async function createCar() {
@@ -1350,6 +1427,7 @@ function openAdminEditor(id) {
   $('admin-destination').value = f.destination || '';
   $('admin-departure-time').value = f.departureTime || '';
   initLegsEditor('admin-legs', f);
+  clearLegTimeErrors('admin-legs');
   $('admin-editor').classList.remove('hidden');
   // Scroll the editor into view on small screens.
   $('admin-editor').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -1373,13 +1451,20 @@ async function adminSaveFlight() {
   if (destination) body.destination = destination;
   if (departureTime) body.departureTime = departureTime;
   // Manual legs (when filled in) override the simple origin/destination form.
-  const manual = collectLegs('admin-legs');
-  if (manual) {
-    body.legs = manual.legs;
-    body.origin = manual.origin;
-    body.destination = manual.destination;
-    body.departureTime = manual.departureTime;
-    body.arrivalTime = manual.arrivalTime;
+  // Every filled stop must have a valid HH:MM time — otherwise underline the
+  // offending fields in red and block the save.
+  const hasLegInput = $('admin-legs').querySelectorAll('.leg-airport').length > 2
+    || [...$('admin-legs').querySelectorAll('.leg-airport')].some((i) => i.value.trim());
+  if (hasLegInput) {
+    if (!validateLegTimes('admin-legs')) return;
+    const manual = collectLegs('admin-legs');
+    if (manual) {
+      body.legs = manual.legs;
+      body.origin = manual.origin;
+      body.destination = manual.destination;
+      body.departureTime = manual.departureTime;
+      body.arrivalTime = manual.arrivalTime;
+    }
   }
   try {
     await call('PATCH', '/api/flights', body);
@@ -1682,6 +1767,10 @@ async function init() {
   // Manual legs editor in the add-flight form (starts with two empty rows).
   initLegsEditor('add-legs', null);
   $('add-add-leg').addEventListener('click', () => appendLegRow('add-legs'));
+  // Clear the red error underline as soon as the user edits a field.
+  $('add-legs').addEventListener('input', (e) => {
+    if (e.target.classList.contains('input-error')) e.target.classList.remove('input-error');
+  });
 
   // Group switcher: re-open the picker.
   $('switch-group').addEventListener('click', () => {

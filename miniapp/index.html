@@ -5,11 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
   <title>Samferd</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <link rel="stylesheet" href="app.css?v=20260831a" />
+  <link rel="stylesheet" href="app.css?v=20260831b" />
 </head>
 <body>
   <!-- Visible version tag: proves which build the webview is running. -->
-  <div id="build-tag" style="display:none">build 2026-08-31a</div>
+  <div id="build-tag" style="display:none">build 2026-08-31b</div>
   <header class="topbar">
     <h1>✈️ Samferd</h1>
     <!-- Shown only when the Telegram client supports addToHomeScreen() -->
@@ -72,10 +72,15 @@
       <label>Departure date
         <input id="departure-date" type="date" />
       </label>
-      <label>Stops (optional — for multi-leg flights; leave empty for auto lookup)
-        <div id="add-legs" class="legs-editor"></div>
-        <button id="add-add-leg" class="btn small" type="button">+ Add stop</button>
-      </label>
+      <!-- Shown ONLY when the API enrichment is missing departure/arrival times:
+           the user must complete them before the flight can be created. -->
+      <div id="add-times-missing" class="hidden">
+        <p class="hint" id="add-times-hint"></p>
+        <label id="add-times-label">
+          <div id="add-legs" class="legs-editor"></div>
+          <button id="add-add-leg" class="btn small" type="button">+ Add stop</button>
+        </label>
+      </div>
       <button id="create-flight" class="btn primary">Create flight</button>
       </div>
 
@@ -211,6 +216,6 @@
       el.classList.remove('hidden');
     });
   </script>
-  <script src="app.js?v=20260831a"></script>
+  <script src="app.js?v=20260831b"></script>
 </body>
 </html>

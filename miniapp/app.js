@@ -86,6 +86,7 @@ const STRINGS = {
     saved: 'Enregistré.',
     transportUpdated: 'Transport mis à jour.',
     flightUpdated: 'Vol mis à jour.',
+    flightMerged: 'Vol fusionné avec {flight} (multi-leg).',
     noteSaved: 'Note enregistrée.',
     pickFlight: 'Choisissez un vol.',
     enterFlightId: 'Saisissez un identifiant de vol.',
@@ -170,6 +171,7 @@ const STRINGS = {
     saved: 'Saved.',
     transportUpdated: 'Transport updated.',
     flightUpdated: 'Flight updated.',
+    flightMerged: 'Flight merged with {flight} (multi-leg).',
     noteSaved: 'Note saved.',
     pickFlight: 'Pick a flight first.',
     enterFlightId: 'Enter a flight id.',
@@ -254,6 +256,7 @@ const STRINGS = {
     saved: 'Lagret.',
     transportUpdated: 'Transport oppdatert.',
     flightUpdated: 'Flyvning oppdatert.',
+    flightMerged: 'Flyvning slått sammen med {flight} (flere etapper).',
     noteSaved: 'Merknad lagret.',
     pickFlight: 'Velg en flyvning først.',
     enterFlightId: 'Skriv inn en fly-id.',
@@ -338,6 +341,7 @@ const STRINGS = {
     saved: 'Gespeichert.',
     transportUpdated: 'Transport aktualisiert.',
     flightUpdated: 'Flug aktualisiert.',
+    flightMerged: 'Flug mit {flight} zusammengeführt (Multi-Leg).',
     noteSaved: 'Notiz gespeichert.',
     pickFlight: 'Wähle zuerst einen Flug.',
     enterFlightId: 'Flug-ID eingeben.',
@@ -1307,12 +1311,17 @@ async function createFlight() {
     return;
   }
   try {
-    const { flight } = await call('POST', '/api/flights', { flightNumber, departureDate });
+    const { flight, mergedInto } = await call('POST', '/api/flights', { flightNumber, departureDate });
     $('flight-number').value = '';
     $('departure-date').value = '';
     selectedDay = departureDate; // show the newly added day
     await refresh();
     if (tg) tg.HapticFeedback.notificationOccurred('success');
+    // The flight chained onto an existing itinerary → tell the user.
+    if (mergedInto) {
+      toast(t.flightMerged.replace('{flight}', mergedInto));
+      return;
+    }
     // The API could not resolve the departure/arrival times → ask the user
     // to complete them for the freshly created flight before it's usable.
     if (flight && (!flight.departureTime || !flight.arrivalTime)) {
@@ -1467,8 +1476,8 @@ async function adminSaveFlight() {
     }
   }
   try {
-    await call('PATCH', '/api/flights', body);
-    toast(t.flightUpdated);
+    const { mergedInto } = await call('PATCH', '/api/flights', body);
+    toast(mergedInto ? t.flightMerged.replace('{flight}', mergedInto) : t.flightUpdated);
     $('admin-editor').classList.add('hidden');
     await refresh();
     if (tg) tg.HapticFeedback.notificationOccurred('success');

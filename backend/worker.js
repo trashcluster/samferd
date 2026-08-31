@@ -747,7 +747,14 @@ async function handle(request) {
     autoMergeFlights(board);
     await saveBoard(group.id, board);
     const merged = board.flights.find((f) => f.id === flight.id) || flight;
-    return json({ ok: true, flight: merged, mergedId: merged.id !== flight.id ? merged.id : null });
+    const mergedInto = board.flights.find((f) => (f.mergedFrom || []).includes(flightNumber));
+    return json({
+      ok: true,
+      flight: merged,
+      // When the new flight was absorbed into an existing itinerary, tell
+      // the client which flight number it became part of (for the toast).
+      mergedInto: mergedInto ? mergedInto.flightNumber : null,
+    });
   }
 
   // ---- join / leave / note / delete ---------------------------------------
@@ -1021,10 +1028,18 @@ async function handle(request) {
 
     // Auto-merge after edits too: changing times/airports may create or
     // break a chain. Pinned flights (explicitly leg-edited) are excluded.
-    if (!flight.mergePinned) autoMergeFlights(board);
+    let mergedInto = null;
+    if (!flight.mergePinned) {
+      const before = board.flights.length;
+      if (autoMergeFlights(board) && board.flights.length < before) {
+        // This flight was absorbed into another one — find which.
+        const target = board.flights.find((f) => (f.mergedFrom || []).includes(flight.flightNumber));
+        mergedInto = target ? target.flightNumber : null;
+      }
+    }
 
     await saveBoard(group.id, board);
-    return json({ ok: true, flight });
+    return json({ ok: true, flight, mergedInto });
   }
 
   return json({ ok: false, error: 'not_found', message: 'Not found.' }, 404);

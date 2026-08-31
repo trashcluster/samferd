@@ -824,21 +824,38 @@ function renderJourney() {
 }
 
 function renderFlight(f) {
-  const route = f.origin && f.destination
-    ? `<span class="route-origin">${escapeHtml(f.origin)}</span> → <span class="route-dest">${escapeHtml(f.destination)}</span>`
-    : `<span class="route-na">${t.routeNa}</span>`;
   const status = f.status ? ` · ${escapeHtml(f.status)}` : '';
 
   const dateLine = formatDate(f.departureDate);
-  // Departure time is the primary reading cue; arrival time shown when known.
-  const timeParts = [
-    f.departureTime,
-    f.arrivalTime ? `→ ${f.arrivalTime}` : '',
-    f.terminal ? `T${escapeHtml(f.terminal)}` : '',
+  const airlineLine = f.airline ? `<div class="flight-airline">${escapeHtml(f.airline)}</div>` : '';
+
+  // Itinerary: one block per leg. Departure time sits under the origin
+  // airport code, arrival time under the destination. For multi-leg flights
+  // the intermediary airports show only their departure time.
+  const legs = (Array.isArray(f.legs) && f.legs.length > 1)
+    ? f.legs
+    : [{ origin: f.origin, destination: f.destination, departureTime: f.departureTime, arrivalTime: f.arrivalTime }];
+  const routeHtml = legs.map((leg, i) => {
+    const originBlock = leg.origin
+      ? `<span class="leg"><span class="leg-code">${escapeHtml(leg.origin)}</span>${leg.departureTime ? `<span class="leg-time">${escapeHtml(leg.departureTime)}</span>` : ''}</span>`
+      : `<span class="leg"><span class="leg-code route-na">${t.routeNa}</span></span>`;
+    const arrow = `<span class="leg-arrow">→</span>`;
+    if (i === legs.length - 1) {
+      const destBlock = leg.destination
+        ? `<span class="leg"><span class="leg-code">${escapeHtml(leg.destination)}</span>${leg.arrivalTime ? `<span class="leg-time">${escapeHtml(leg.arrivalTime)}</span>` : ''}</span>`
+        : '';
+      return originBlock + (destBlock ? arrow + destBlock : '');
+    }
+    // Intermediary leg: departure time only (shown under the origin above);
+    // the next leg's origin block carries the connection's departure time.
+    return originBlock + arrow;
+  }).join('');
+  const firstLeg = legs[0] || {};
+  const metaParts = [
+    firstLeg.terminal ? `T${escapeHtml(firstLeg.terminal)}` : '',
     f.gate ? `G${escapeHtml(f.gate)}` : '',
   ].filter(Boolean).join(' ');
-  const timeLine = timeParts ? ` · ${escapeHtml(timeParts)}` : '';
-  const airlineLine = f.airline ? `<div class="flight-airline">${escapeHtml(f.airline)}</div>` : '';
+  const metaLine = metaParts ? `<div class="flight-airline">${escapeHtml(metaParts)}</div>` : '';
 
   const onFlight = f.passengers.some((p) => p.id === me);
   const isCreator = f.createdBy === me;
@@ -860,10 +877,11 @@ function renderFlight(f) {
     <div class="flight">
       <div class="flight-head">
         <span class="flight-number">${escapeHtml(f.flightNumber)}</span>
-        <span class="flight-date">${escapeHtml(dateLine)}${timeLine}</span>
+        <span class="flight-date">${escapeHtml(dateLine)}</span>
       </div>
-      <div class="flight-route">${route}${status}</div>
+      <div class="flight-route legs">${routeHtml}${status}</div>
       ${airlineLine}
+      ${metaLine}
       <ul class="passengers">${people}</ul>
       <div class="flight-actions">${actions}</div>
     </div>`;

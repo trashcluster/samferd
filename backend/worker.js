@@ -445,23 +445,42 @@ async function fetchAeroDataBox(flightNumber, departureDate) {
     let body;
     try { body = JSON.parse(text); } catch { return null; }
     // Response is an array of flights matching the number on that date.
+    // For a multi-leg flight number (e.g. a through-fare with a connection),
+    // the API returns one entry per leg — collect them all, sorted by
+    // departure time, so the app can show the full itinerary.
     const flights = Array.isArray(body) ? body : [];
     if (!flights.length) return null;
-    // Prefer the first flight with departure data.
-    const f = flights.find((x) => x && x.departure && x.departure.airport) || flights[0];
-    const dep = f.departure || {};
-    const arr = f.arrival || {};
-    const depAirport = dep.airport || {};
-    const arrAirport = arr.airport || {};
+    const legEntries = flights.filter((x) => x && x.departure && x.departure.airport);
+    if (!legEntries.length) return null;
+    const legs = legEntries.map((x) => {
+      const dep = x.departure || {};
+      const arr = x.arrival || {};
+      const depAirport = dep.airport || {};
+      const arrAirport = arr.airport || {};
+      return {
+        origin: depAirport.iata || depAirport.icao || depAirport.name || null,
+        destination: arrAirport.iata || arrAirport.icao || arrAirport.name || null,
+        // scheduledTime.local is the airport-local departure/arrival time.
+        departureTime: toLocalHHMM(dep.scheduledTime?.local),
+        arrivalTime: toLocalHHMM(arr.scheduledTime?.local),
+        terminal: dep.terminal || null,
+        gate: dep.gate || null,
+      };
+    }).sort((a, b) => (a.departureTime || '99:99').localeCompare(b.departureTime || '99:99'));
+    const first = legs[0];
+    const last = legs[legs.length - 1];
     return {
-      origin: depAirport.iata || depAirport.icao || depAirport.name || null,
-      destination: arrAirport.iata || arrAirport.icao || arrAirport.name || null,
-      // scheduledTime.local is the airport-local departure/arrival time.
-      departureTime: toLocalHHMM(dep.scheduledTime?.local),
-      arrivalTime: toLocalHHMM(arr.scheduledTime?.local),
-      terminal: dep.terminal || null,
-      gate: dep.gate || null,
-      airline: f.airline?.name || null,
+      // Top-level fields describe the whole journey (first departure → last
+      // arrival) for backward compatibility with existing boards.
+      origin: first.origin,
+      destination: last.destination,
+      departureTime: first.departureTime,
+      arrivalTime: last.arrivalTime,
+      terminal: first.terminal,
+      gate: first.gate,
+      airline: legEntries[0].airline?.name || null,
+      // Full itinerary; only present when the flight actually has several legs.
+      legs: legs.length > 1 ? legs : undefined,
     };
   } catch {
     return null;
@@ -615,6 +634,7 @@ async function handle(request) {
       terminal: enrichment?.terminal || null,
       gate: enrichment?.gate || null,
       airline: enrichment?.airline || null,
+      legs: enrichment?.legs || null,
       status: null,
       createdBy: user.id,
       passengers: [],

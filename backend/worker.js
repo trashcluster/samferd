@@ -529,6 +529,98 @@ function toLocalHHMM(iso) {
 }
 
 // ---------------------------------------------------------------------------
+// Multi-leg auto-merging
+// ---------------------------------------------------------------------------
+
+/**
+ * Normalize a flight into a chain of legs. A single-leg flight becomes a
+ * one-element array; an existing multi-leg flight keeps its legs.
+ */
+function flightLegs(f) {
+  if (Array.isArray(f.legs) && f.legs.length > 1) return f.legs;
+  return [{
+    origin: f.origin || null,
+    destination: f.destination || null,
+    departureTime: f.departureTime || null,
+    arrivalTime: f.arrivalTime || null,
+  }];
+}
+
+/**
+ * Can flight B be appended after flight A (A's last leg arrives at B's first
+ * leg's origin, same day, later time)? Either time may be unknown — an
+ * unknown time still chains (we can't disprove it), a known time must be
+ * strictly later.
+ */
+function chainsAfter(a, b) {
+  if (a.id === b.id) return false;
+  if (a.departureDate !== b.departureDate) return false;
+  const aLegs = flightLegs(a);
+  const bLegs = flightLegs(b);
+  const aLast = aLegs[aLegs.length - 1];
+  const bFirst = bLegs[0];
+  if (!aLast?.destination || !bFirst?.origin) return false;
+  if (aLast.destination.toUpperCase() !== bFirst.origin.toUpperCase()) return false;
+  // Time check: only fails when BOTH times are known and out of order.
+  if (aLast.arrivalTime && bFirst.departureTime
+    && bFirst.departureTime <= aLast.arrivalTime) return false;
+  return true;
+}
+
+/**
+ * Merge flight `src` into flight `dst` (dst keeps its id and passengers).
+ * The merged itinerary is the concatenation of both leg chains, sorted by
+ * departure time. Top-level fields describe the whole journey.
+ */
+function mergeFlights(dst, src) {
+  const legs = [...flightLegs(dst), ...flightLegs(src)]
+    .sort((x, y) => (x.departureTime || '99:99').localeCompare(y.departureTime || '99:99'));
+  dst.legs = legs;
+  dst.origin = legs[0].origin;
+  dst.destination = legs[legs.length - 1].destination;
+  dst.departureTime = legs[0].departureTime;
+  dst.arrivalTime = legs[legs.length - 1].arrivalTime;
+  // Keep the earliest departure date (legs may span midnight in theory).
+  if (src.departureDate < dst.departureDate) dst.departureDate = src.departureDate;
+  // Merge passengers (union by id) and airline/terminal info if missing.
+  for (const p of src.passengers || []) {
+    if (!dst.passengers.some((q) => q.id === p.id)) dst.passengers.push(p);
+  }
+  dst.airline = dst.airline || src.airline || null;
+  dst.terminal = dst.terminal || src.terminal || null;
+  dst.gate = dst.gate || src.gate || null;
+  // A merged flight can be un-merged by an admin; remember the parts.
+  dst.mergedFrom = [...(dst.mergedFrom || []), src.flightNumber].filter(Boolean);
+}
+
+/**
+ * Repeatedly merge any flights that chain (arrive → depart same airport,
+ * same day, later time), regardless of the order they were added. Runs to
+ * fixpoint so long multi-leg itineraries (3+ flights) form correctly.
+ * @returns {boolean} true when any merge happened (board changed).
+ */
+function autoMergeFlights(board) {
+  let merged = false;
+  let changed = true;
+  while (changed) {
+    changed = false;
+    outer:
+    for (const a of board.flights) {
+      for (const b of board.flights) {
+        if (chainsAfter(a, b)) {
+          mergeFlights(a, b);
+          board.flights = board.flights.filter((f) => f.id !== b.id);
+          merged = changed = true;
+          console.log('[merge] merged flight', b.flightNumber, 'into', a.flightNumber);
+          break outer;
+        }
+      }
+    }
+  }
+  return merged;
+}
+
+// ---------------------------------------------------------------------------
 // Request handler
 // ---------------------------------------------------------------------------
 
@@ -649,8 +741,13 @@ async function handle(request) {
       passengers: [],
     };
     board.flights.push(flight);
+    // Auto-merge: if this flight chains onto another (arrive → depart the
+    // same airport later the same day), merge them into one multi-leg
+    // flight. Works whichever leg was added first, and for 3+ legs.
+    autoMergeFlights(board);
     await saveBoard(group.id, board);
-    return json({ ok: true, flight });
+    const merged = board.flights.find((f) => f.id === flight.id) || flight;
+    return json({ ok: true, flight: merged, mergedId: merged.id !== flight.id ? merged.id : null });
   }
 
   // ---- join / leave / note / delete ---------------------------------------
@@ -910,7 +1007,21 @@ async function handle(request) {
           }))
         : null;
       flight.legs = legs && legs.length > 1 ? legs : null;
+      // Recompute the top-level summary from the edited legs.
+      if (flight.legs) {
+        flight.origin = flight.legs[0].origin;
+        flight.destination = flight.legs[flight.legs.length - 1].destination;
+        flight.departureTime = flight.legs[0].departureTime;
+        flight.arrivalTime = flight.legs[flight.legs.length - 1].arrivalTime;
+      }
+      // Admin edited the legs explicitly → this flight is pinned; do not
+      // auto-merge it again (it may be intentionally un-merged).
+      flight.mergePinned = true;
     }
+
+    // Auto-merge after edits too: changing times/airports may create or
+    // break a chain. Pinned flights (explicitly leg-edited) are excluded.
+    if (!flight.mergePinned) autoMergeFlights(board);
 
     await saveBoard(group.id, board);
     return json({ ok: true, flight });

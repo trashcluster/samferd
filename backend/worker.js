@@ -1042,6 +1042,41 @@ async function handle(request) {
     return json({ ok: true, flight, mergedInto });
   }
 
+  // ---- admin: re-enrich all flights from the flight API -------------------
+  // Refreshes origin/destination/times/airline for every flight on the board
+  // WITHOUT touching ids or passengers. Clears the enrichment cache first so
+  // stale entries (e.g. cached before arrivalTime existed) are re-fetched.
+  if (path === '/api/flights/reenrich' && method === 'POST') {
+    if (!isAdmin) {
+      return json({ ok: false, error: 'forbidden', message: 'Admin only.' }, 403);
+    }
+    let updated = 0;
+    const merged = [];
+    for (const flight of [...board.flights]) {
+      // Skip manually-pinned itineraries: the admin shaped those by hand.
+      if (flight.mergePinned) continue;
+      // Skip flights whose date can't be enriched (missing number/date).
+      if (!flight.flightNumber || !flight.departureDate) continue;
+      await env.SAMFERD.delete(`enrich:${flight.flightNumber}:${flight.departureDate}`);
+      const e = await enrichFlight(flight.flightNumber, flight.departureDate);
+      if (!e) continue; // still unknown — keep whatever we have
+      const legs = e.legs && e.legs.length > 1 ? e.legs : null;
+      flight.origin = e.origin ?? flight.origin;
+      flight.destination = e.destination ?? flight.destination;
+      flight.departureTime = e.departureTime ?? flight.departureTime;
+      flight.arrivalTime = e.arrivalTime ?? flight.arrivalTime;
+      if (legs) flight.legs = legs;
+      flight.terminal = e.terminal ?? flight.terminal;
+      flight.gate = e.gate ?? flight.gate;
+      flight.airline = e.airline ?? flight.airline;
+      updated++;
+    }
+    // Re-chaining may now be possible with the fresh times/airports.
+    if (autoMergeFlights(board)) merged.push('auto-merge applied');
+    if (updated || merged.length) await saveBoard(group.id, board);
+    return json({ ok: true, updated, total: board.flights.length, merged });
+  }
+
   return json({ ok: false, error: 'not_found', message: 'Not found.' }, 404);
 }
 

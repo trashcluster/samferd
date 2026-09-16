@@ -86,6 +86,7 @@ const STRINGS = {
     saved: 'Enregistré.',
     transportUpdated: 'Transport mis à jour.',
     flightUpdated: 'Vol mis à jour.',
+    reenrichDone: '{updated} vol(s) mis à jour depuis l\'API.',
     flightMerged: 'Vol fusionné avec {flight} (multi-leg).',
     noteSaved: 'Note enregistrée.',
     pickFlight: 'Choisissez un vol.',
@@ -171,6 +172,7 @@ const STRINGS = {
     saved: 'Saved.',
     transportUpdated: 'Transport updated.',
     flightUpdated: 'Flight updated.',
+    reenrichDone: '{updated} flight(s) updated from the API.',
     flightMerged: 'Flight merged with {flight} (multi-leg).',
     noteSaved: 'Note saved.',
     pickFlight: 'Pick a flight first.',
@@ -256,6 +258,7 @@ const STRINGS = {
     saved: 'Lagret.',
     transportUpdated: 'Transport oppdatert.',
     flightUpdated: 'Flyvning oppdatert.',
+    reenrichDone: '{updated} flyvning(er) oppdatert fra API-et.',
     flightMerged: 'Flyvning slått sammen med {flight} (flere etapper).',
     noteSaved: 'Merknad lagret.',
     pickFlight: 'Velg en flyvning først.',
@@ -341,6 +344,7 @@ const STRINGS = {
     saved: 'Gespeichert.',
     transportUpdated: 'Transport aktualisiert.',
     flightUpdated: 'Flug aktualisiert.',
+    reenrichDone: '{updated} Flüge aus der API aktualisiert.',
     flightMerged: 'Flug mit {flight} zusammengeführt (Multi-Leg).',
     noteSaved: 'Notiz gespeichert.',
     pickFlight: 'Wähle zuerst einen Flug.',
@@ -1186,6 +1190,27 @@ function setupAdminUI() {
     });
     $('admin-save-flight').addEventListener('click', adminSaveFlight);
     $('admin-add-leg').addEventListener('click', () => appendLegRow('admin-legs'));
+    $('admin-reenrich').addEventListener('click', adminReenrich);
+  }
+}
+
+// Re-fetch flight data (times, airports, airline) for every flight on the
+// board from the flight API. Passengers and flight ids are untouched.
+async function adminReenrich() {
+  const btn = $('admin-reenrich');
+  btn.disabled = true;
+  const original = btn.textContent;
+  btn.textContent = '⏳ …';
+  try {
+    const r = await call('POST', '/api/flights/reenrich');
+    toast(t.reenrichDone.replace('{updated}', r.updated));
+    await refresh();
+    if (tg) tg.HapticFeedback.notificationOccurred('success');
+  } catch (e) {
+    toast(e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = original;
   }
 }
 

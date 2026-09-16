@@ -5,11 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
   <title>Samferd</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <link rel="stylesheet" href="app.css?v=20260831b" />
+  <link rel="stylesheet" href="app.css?v=20260916a" />
 </head>
 <body>
   <!-- Visible version tag: proves which build the webview is running. -->
-  <div id="build-tag" style="display:none">build 2026-08-31b</div>
+  <div id="build-tag" style="display:none">build 2026-09-16a</div>
   <header class="topbar">
     <h1>✈️ Samferd</h1>
     <!-- Shown only when the Telegram client supports addToHomeScreen() -->
@@ -127,6 +127,7 @@
     <section id="admin-panel" class="panel form hidden">
       <h2>Admin — manage flights</h2>
       <div id="admin-flight-list" class="admin-list"></div>
+      <button id="admin-reenrich" class="btn mt">🔄 Re-fetch flight times</button>
 
       <div id="admin-editor" class="hidden mt">
         <h2>Edit flight</h2>
@@ -216,6 +217,6 @@
       el.classList.remove('hidden');
     });
   </script>
-  <script src="app.js?v=20260831b"></script>
+  <script src="app.js?v=20260916a"></script>
 </body>
 </html>
